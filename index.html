@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>空間桌布編輯器</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="toolbar">
+    <span class="brand">空間桌布編輯器</span>
+    <label class="field inline">名稱
+      <input id="packName" type="text" spellcheck="false">
+    </label>
+    <label class="field inline">畫布
+      <select id="canvasPreset"></select>
+    </label>
+    <span id="customSize" class="inline" hidden>
+      <input id="canvasW" type="number" min="240" max="4320" step="1" aria-label="畫布寬度"> ×
+      <input id="canvasH" type="number" min="240" max="7680" step="1" aria-label="畫布高度">
+    </span>
+    <span class="spacer"></span>
+    <button id="undoBtn" title="復原 (Ctrl+Z)">復原</button>
+    <button id="redoBtn" title="重做 (Ctrl+Y)">重做</button>
+    <button id="openProjectBtn">開啟專案</button>
+    <button id="saveProjectBtn">儲存專案</button>
+    <button id="exportBtn" class="primary">匯出桌布包 .zip</button>
+  </header>
+
+  <main class="workspace">
+    <aside class="panel layers-panel">
+      <div class="panel-head">
+        <h2>圖層</h2>
+        <button id="addLayerBtn" class="primary small">＋ 圖片或影片</button>
+      </div>
+      <p class="hint">最上面是離你最近的圖層。也可以把檔案直接拖進視窗。</p>
+      <ul id="layerList" class="layer-list"></ul>
+      <p id="emptyHint" class="empty">還沒有圖層。<br>先加入背景(圖片或影片),再加入透明背景的前景圖。</p>
+    </aside>
+
+    <section class="view space-view">
+      <div class="view-head">
+        <h2>3D 空間</h2>
+        <span class="hint">拖曳空白處旋轉・滾輪縮放・拖曳圖層改變遠近</span>
+        <button id="resetViewBtn" class="small">重設視角</button>
+      </div>
+      <div id="space" class="space">
+        <div id="world" class="world"></div>
+      </div>
+    </section>
+
+    <section class="view phone-view">
+      <div class="view-head">
+        <h2>手機預覽</h2>
+        <label class="toggle"><input id="tiltMode" type="checkbox"> 傾斜預覽</label>
+      </div>
+      <div class="phone-wrap">
+        <div class="phone">
+          <canvas id="phone"></canvas>
+        </div>
+      </div>
+      <p id="phoneHint" class="hint center"></p>
+    </section>
+
+    <aside class="panel props-panel">
+      <div id="layerProps" hidden>
+        <div class="panel-head"><h2>圖層</h2></div>
+        <label class="field">名稱
+          <input id="layerName" type="text" spellcheck="false">
+        </label>
+        <div id="layerFields"></div>
+        <div class="button-row">
+          <button id="fitCoverBtn" class="small">填滿畫布</button>
+          <button id="fitContainBtn" class="small">完整顯示</button>
+          <button id="centerBtn" class="small">置中</button>
+        </div>
+        <label id="flipRow" class="toggle"><input id="layerFlip" type="checkbox"> 水平翻轉</label>
+        <label id="blendRow" class="field">混合方式(影片)
+          <select id="layerBlend">
+            <option value="normal">正常</option>
+            <option value="add">相加(黑底特效影片:火花、光暈)</option>
+            <option value="screen">濾色(較柔和的相加)</option>
+          </select>
+        </label>
+        <div class="button-row">
+          <button id="replaceImageBtn" class="small">更換檔案</button>
+          <button id="duplicateBtn" class="small">複製圖層</button>
+          <button id="deleteBtn" class="small danger">刪除</button>
+        </div>
+      </div>
+      <p id="noSelection" class="empty">選一個圖層來調整它的位置與遠近。</p>
+
+      <div class="panel-head"><h2>場景</h2></div>
+      <div id="sceneFields"></div>
+      <label class="field">動態效果
+        <select id="effect"></select>
+      </label>
+      <p class="hint">動態效果只在手機上顯示,這裡無法預覽。</p>
+      <p id="edgeWarning" class="warning" hidden></p>
+    </aside>
+  </main>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+  <div id="dropOverlay" class="drop-overlay" hidden>放開以加入圖層</div>
+
+  <input id="imageInput" type="file" accept="image/*,video/*" multiple hidden>
+  <input id="replaceInput" type="file" accept="image/*,video/*" hidden>
+  <input id="projectInput" type="file" accept=".json,application/json" hidden>
+
+  <script src="js/zip.js"></script>
+  <script src="js/effects.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
