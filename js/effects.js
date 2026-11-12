@@ -4,6 +4,8 @@
 (function () {
   'use strict';
 
+  const t = window.WallI18n.t;
+
   const dust = `// Floating light dust: soft glowing motes drifting upwards. Meant for "blend": "add".
 vec2 hash2(vec2 p) {
     return fract(sin(vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)))) * 43758.5453);
@@ -97,9 +99,9 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 `;
 
   window.WallEffects = {
-    none: { label: '無', source: null, blend: 'normal' },
-    dust: { label: '光塵', source: dust, blend: 'add' },
-    snow: { label: '飄雪', source: snow, blend: 'normal' },
-    rain: { label: '下雨', source: rain, blend: 'normal' },
+    none: { label: t`無`, source: null, blend: 'normal' },
+    dust: { label: t`光塵`, source: dust, blend: 'add' },
+    snow: { label: t`飄雪`, source: snow, blend: 'normal' },
+    rain: { label: t`下雨`, source: rain, blend: 'normal' },
   };
 })();

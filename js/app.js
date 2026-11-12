@@ -7,6 +7,8 @@
 (function () {
   'use strict';
 
+  const t = window.WallI18n.t;
+
   const $ = (id) => document.getElementById(id);
 
   const PRESETS = [
@@ -15,7 +17,7 @@
     ['1440 × 3200', 1440, 3200],
     ['1440 × 3120', 1440, 3120],
     ['1080 × 1920', 1080, 1920],
-    ['自訂', 0, 0],
+    [t`自訂`, 0, 0],
   ];
   /** Height in pixels of the working copies used for the previews. */
   const PREVIEW_H = 1000;
@@ -25,7 +27,7 @@
   const HISTORY_LIMIT = 100;
 
   const state = {
-    name: '我的空間桌布',
+    name: t`我的空間桌布`,
     canvasW: 1080,
     canvasH: 2400,
     strength: 0.04,
@@ -172,8 +174,54 @@
       ctx.drawImage(bakedCanvas(layer), -W / 2, -H / 2, W, H);
       ctx.restore();
     }
+    drawGuide(ctx, W, H);
     const layer = selected();
     if (layer && layer.visible && !tiltMode) drawSelection(ctx, layer, W, H);
+  }
+
+  /** 'none' | 'home' | 'lock': which phone screen's furniture to sketch over the preview. */
+  let guide = 'none';
+
+  /**
+   * Sketches where a phone puts its own things (status bar, clock, icons), so the subject can be
+   * kept clear of them. Not part of the wallpaper: it is never exported.
+   */
+  function drawGuide(ctx, W, H) {
+    if (guide === 'none') return;
+    const box = (x, y, w, h, r) => {
+      ctx.beginPath();
+      ctx.roundRect(x * W, y * H, w * W, h * H, r * W);
+      ctx.fill();
+    };
+    ctx.save();
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.34)';
+    // Status bar: time on the left, signal and battery on the right.
+    box(0.07, 0.022, 0.11, 0.012, 0.01);
+    box(0.80, 0.022, 0.05, 0.012, 0.01);
+    box(0.87, 0.022, 0.06, 0.012, 0.01);
+    if (guide === 'home') {
+      box(0.07, 0.135, 0.38, 0.022, 0.012); // date widget
+      for (let row = 0; row < 2; row++) {
+        for (let col = 0; col < 4; col++) {
+          const cx = 0.155 + col * 0.23;
+          const cy = 0.675 + row * 0.115;
+          ctx.beginPath();
+          ctx.arc(cx * W, cy * H, 0.072 * W, 0, Math.PI * 2);
+          ctx.fill();
+          if (row === 0) box(cx - 0.06, cy + 0.04, 0.12, 0.011, 0.008); // label
+        }
+      }
+      box(0.085, 0.892, 0.83, 0.056, 0.06); // search bar
+    } else {
+      box(0.27, 0.115, 0.46, 0.085, 0.03); // clock
+      box(0.33, 0.215, 0.34, 0.018, 0.012); // date
+      ctx.beginPath();
+      ctx.arc(0.13 * W, 0.93 * H, 0.062 * W, 0, Math.PI * 2);
+      ctx.arc(0.87 * W, 0.93 * H, 0.062 * W, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    box(0.37, 0.981, 0.26, 0.005, 0.005); // gesture bar
+    ctx.restore();
   }
 
   /** Outline of the selected layer's image, as shown (parallax zoom included, no tilt). */
@@ -232,6 +280,7 @@
     const { W, H } = previewSize();
     const order = drawOrder().reverse();
     for (const layer of order) {
+      if (layer.locked) continue;
       const zoom = parallaxOf(layer.depth).zoom;
       const bx = Math.round(((nx - 0.5) / zoom + 0.5) * W);
       const by = Math.round(((ny - 0.5) / zoom + 0.5) * H);
@@ -294,7 +343,7 @@
   let wheelCommit = 0;
   phone.addEventListener('wheel', (event) => {
     const layer = selected();
-    if (tiltMode || !layer) return;
+    if (tiltMode || !layer || layer.locked) return;
     event.preventDefault();
     if (event.shiftKey) {
       const delta = event.deltaY || event.deltaX;
@@ -384,14 +433,14 @@
 
     const eye = document.createElement('div');
     eye.className = 'eye-marker';
-    eye.textContent = '你從這一側看';
+    eye.textContent = t`你從這一側看`;
     placeBox(eye, w * 0.5, h * 0.16, SPREAD / 2 + 170);
     world.appendChild(eye);
 
     const focus = document.createElement('div');
     focus.className = 'focus-plane';
     focus.id = 'focusPlane';
-    focus.appendChild(document.createElement('span')).textContent = '對焦面(傾斜時不動)';
+    focus.appendChild(document.createElement('span')).textContent = t`對焦面(傾斜時不動)`;
     world.appendChild(focus);
 
     for (const layer of state.layers) {
@@ -417,7 +466,7 @@
       placeBox(plane, w, h, depthToZ(layer.depth));
       plane.classList.toggle('selected', layer.id === state.selectedId);
       plane.classList.toggle('hidden-layer', !layer.visible);
-      plane.querySelector('.plane-label').textContent = `${layer.name}・深度 ${layer.depth.toFixed(2)}`;
+      plane.querySelector('.plane-label').textContent = t`${layer.name}・深度 ${layer.depth.toFixed(2)}`;
     }
   }
 
@@ -513,31 +562,138 @@
       title.textContent = layer.name;
       const depth = document.createElement('div');
       depth.className = 'layer-depth';
-      const kind = entry && entry.kind === 'video' ? '影片・' : '';
-      depth.textContent = `${kind}深度 ${layer.depth.toFixed(2)}${depthWord(layer.depth)}`;
+      const kind = entry && entry.kind === 'video' ? t`影片・` : '';
+      depth.textContent = t`${kind}深度 ${layer.depth.toFixed(2)}${depthWord(layer.depth)}`;
       meta.append(title, depth);
 
-      const eye = document.createElement('button');
-      eye.className = 'icon-btn';
-      eye.textContent = layer.visible ? '隱藏' : '顯示';
-      eye.title = layer.visible ? '隱藏這個圖層(不會匯出)' : '顯示這個圖層';
-      eye.addEventListener('click', (event) => {
+      const eye = iconButton(
+        layer.visible ? ICONS.eye : ICONS.eyeOff,
+        layer.visible ? t`隱藏這個圖層(不會匯出)` : t`顯示這個圖層`,
+        () => {
+          layer.visible = !layer.visible;
+          refresh();
+          commit();
+        },
+      );
+      const lock = iconButton(
+        layer.locked ? ICONS.lock : ICONS.unlock,
+        layer.locked ? t`解除鎖定` : t`鎖定:在預覽上點不到、拖不動`,
+        () => {
+          layer.locked = !layer.locked;
+          renderLayerList();
+          commit();
+        },
+      );
+      lock.classList.toggle('active', !!layer.locked);
+
+      // Double-click the name to rename it where it is.
+      title.title = t`按兩下改名`;
+      title.addEventListener('dblclick', (event) => {
         event.stopPropagation();
-        layer.visible = !layer.visible;
-        refresh();
-        commit();
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'layer-rename';
+        input.value = layer.name;
+        input.setAttribute('aria-label', t`圖層名稱`);
+        title.replaceWith(input);
+        input.focus();
+        input.select();
+        let done = false;
+        const finish = (keep) => {
+          if (done) return;
+          done = true;
+          if (keep && input.value.trim()) layer.name = input.value.trim().slice(0, 60);
+          updateSpace();
+          renderLayerList();
+          syncProperties();
+          commit();
+        };
+        input.addEventListener('keydown', (e) => {
+          e.stopPropagation();
+          if (e.key === 'Enter') finish(true);
+          if (e.key === 'Escape') finish(false);
+        });
+        input.addEventListener('blur', () => finish(true));
+        input.addEventListener('click', (e) => e.stopPropagation());
       });
 
-      item.append(thumb, meta, eye);
+      item.append(thumb, meta, lock, eye);
+
+      // Drag a layer onto another to move it in front of or behind it.
+      item.draggable = true;
+      item.addEventListener('dragstart', (event) => {
+        event.dataTransfer.setData('text/x-layer', String(layer.id));
+        event.dataTransfer.effectAllowed = 'move';
+      });
+      item.addEventListener('dragover', (event) => {
+        if (!Array.from(event.dataTransfer.types).includes('text/x-layer')) return;
+        event.preventDefault();
+        const below = event.clientY > item.getBoundingClientRect().top + item.offsetHeight / 2;
+        item.classList.toggle('drop-before', !below);
+        item.classList.toggle('drop-after', below);
+      });
+      item.addEventListener('dragleave', () => item.classList.remove('drop-before', 'drop-after'));
+      item.addEventListener('drop', (event) => {
+        const id = Number(event.dataTransfer.getData('text/x-layer'));
+        const after = item.classList.contains('drop-after');
+        item.classList.remove('drop-before', 'drop-after');
+        if (!id || id === layer.id) return;
+        event.preventDefault();
+        event.stopPropagation();
+        moveInStack(id, layer.id, after);
+      });
       item.addEventListener('click', () => select(layer.id));
       list.appendChild(item);
     }
     $('emptyHint').hidden = state.layers.length > 0;
+    $('welcome').hidden = state.layers.length > 0;
+  }
+
+  /**
+   * Moves a layer to just in front of (or behind) another in the list. The stack keeps the same
+   * set of depths; the layers trade them, so the spacing the scene was built with is preserved.
+   */
+  function moveInStack(movedId, targetId, after) {
+    const order = state.layers.slice().sort((a, b) => a.depth - b.depth); // nearest first, as listed
+    const depths = order.map((l) => l.depth);
+    const moved = order.find((l) => l.id === movedId);
+    if (!moved) return;
+    const rest = order.filter((l) => l !== moved);
+    const at = rest.findIndex((l) => l.id === targetId);
+    if (at < 0) return;
+    rest.splice(at + (after ? 1 : 0), 0, moved);
+    rest.forEach((l, i) => {
+      l.depth = depths[i];
+    });
+    state.selectedId = movedId;
+    refresh();
+    commit();
+  }
+
+  const ICONS = {
+    eye: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5C7 5 3.2 8.3 1.5 12c1.7 3.7 5.5 7 10.5 7s8.800-3.3 10.5-7C20.800 8.300 17 5 12 5zm0 11.500A4.500 4.500 0 1 1 12 7.500a4.500 4.500 0 0 1 0 9zm0-2.300a2.200 2.200 0 1 0 0-4.400 2.200 2.200 0 0 0 0 4.400z"/></svg>',
+    eyeOff: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.300 2 2 3.300l3.400 3.400C3.700 8 2.300 9.900 1.500 12c1.700 3.700 5.500 7 10.500 7 1.600 0 3.100-.3 4.400-.900l3.300 3.300L21 20.100 3.300 2zM12 16.500a4.500 4.500 0 0 1-4.200-6.200l1.800 1.800a2.200 2.200 0 0 0 2.700 2.700l1.800 1.800c-.600.300-1.300.400-2.100.400zM12 5c5 0 8.800 3.300 10.500 7-.700 1.500-1.700 2.900-3 4.100l-3.100-3.100A4.500 4.500 0 0 0 11 7.600L8.600 5.500C9.700 5.200 10.800 5 12 5z"/></svg>',
+    lock: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 9V7A5 5 0 0 0 7 7v2H5.500v12h13V9H17zM9 7a3 3 0 0 1 6 0v2H9V7zm3 10.500a1.800 1.800 0 1 1 0-3.600 1.800 1.800 0 0 1 0 3.600z"/></svg>',
+    unlock: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 9H9V7a3 3 0 0 1 5.800-1l1.900-.700A5 5 0 0 0 7 7v2H5.500v12h13V9H17zm-5 8.500a1.800 1.800 0 1 1 0-3.600 1.800 1.800 0 0 1 0 3.600z"/></svg>',
+  };
+
+  /** A square button showing one of ICONS; `label` is its tooltip and accessible name. */
+  function iconButton(icon, label, onClick) {
+    const button = document.createElement('button');
+    button.className = 'icon-btn';
+    button.innerHTML = icon; // a constant from ICONS, never user text
+    button.title = label;
+    button.setAttribute('aria-label', label);
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      onClick();
+    });
+    return button;
   }
 
   function depthWord(depth) {
-    if (depth <= 0.001) return '・最近';
-    if (depth >= 0.999) return '・最遠';
+    if (depth <= 0.001) return t`・最近`;
+    if (depth >= 0.999) return t`・最遠`;
     return '';
   }
 
@@ -616,14 +772,14 @@
   }
 
   function buildProperties() {
-    layerSlider('depth', '深度(0 最近 → 1 最遠)', 0, 1, 0.01);
-    layerSlider('x', '水平位置', -1, 1, 0.005, 3);
-    layerSlider('y', '垂直位置', -1, 1, 0.005, 3);
-    layerSlider('scale', '縮放(1 = 剛好填滿畫布)', 0.02, 4, 0.01);
-    layerSlider('rotation', '旋轉(度)', -180, 180, 1, 0);
-    layerSlider('opacity', '不透明度', 0, 1, 0.01);
-    sceneSlider('strength', '視差強度', 0, 0.1, 0.005, 3);
-    sceneSlider('focus', '對焦深度(這個深度的圖層不動)', 0, 1, 0.05);
+    layerSlider('depth', t`深度(0 最近 → 1 最遠)`, 0, 1, 0.01);
+    layerSlider('x', t`水平位置`, -1, 1, 0.005, 3);
+    layerSlider('y', t`垂直位置`, -1, 1, 0.005, 3);
+    layerSlider('scale', t`縮放(1 = 剛好填滿畫布)`, 0.02, 4, 0.01);
+    layerSlider('rotation', t`旋轉(度)`, -180, 180, 1, 0);
+    layerSlider('opacity', t`不透明度`, 0, 1, 0.01);
+    sceneSlider('strength', t`視差強度`, 0, 0.1, 0.005, 3);
+    sceneSlider('focus', t`對焦深度(這個深度的圖層不動)`, 0, 1, 0.05);
 
     const effect = $('effect');
     for (const [key, value] of Object.entries(window.WallEffects)) {
@@ -689,7 +845,7 @@
     $('duplicateBtn').addEventListener('click', () => {
       const layer = selected();
       if (!layer) return;
-      const copy = { ...layer, id: nextId++, name: `${layer.name} 複本`, x: layer.x + 0.03, y: layer.y + 0.02 };
+      const copy = { ...layer, id: nextId++, name: t`${layer.name} 複本`, x: layer.x + 0.03, y: layer.y + 0.02 };
       state.layers.push(copy);
       rebake(copy);
       state.selectedId = copy.id;
@@ -763,9 +919,9 @@
 
   function updateHints() {
     let text;
-    if (tiltMode) text = '移動滑鼠模擬傾斜手機;移開後會自動搖擺';
-    else if (selected()) text = '拖曳移動・滾輪縮放・Shift + 滾輪旋轉・方向鍵微調';
-    else if (state.layers.length) text = '點一下圖層來選取';
+    if (tiltMode) text = t`移動滑鼠模擬傾斜手機;移開後會自動搖擺`;
+    else if (selected()) text = t`拖曳移動・滾輪縮放・Shift + 滾輪旋轉・方向鍵微調`;
+    else if (state.layers.length) text = t`點一下圖層來選取`;
     else text = '';
     $('phoneHint').textContent = text;
   }
@@ -780,7 +936,7 @@
       const ctx = bakedCanvas(order[0]).getContext('2d', { willReadFrequently: true });
       const points = [[1, 1], [W - 2, 1], [1, H - 2], [W - 2, H - 2], [W >> 1, H >> 1]];
       const gap = points.some(([x, y]) => ctx.getImageData(x, y, 1, 1).data[3] < 250);
-      if (gap) text = `最遠的圖層「${order[0].name}」沒有填滿畫布,空白處在手機上會是黑色。`;
+      if (gap) text = t`最遠的圖層「${order[0].name}」沒有填滿畫布,空白處在手機上會是黑色。`;
     }
     warning.textContent = text;
     warning.hidden = !text;
@@ -818,6 +974,7 @@
     historyIndex = history.length - 1;
     dirty = true;
     syncToolbar();
+    scheduleAutosave();
   }
 
   function undo() {
@@ -845,6 +1002,7 @@
     $('undoBtn').disabled = historyIndex <= 0;
     $('redoBtn').disabled = historyIndex >= history.length - 1;
     $('exportBtn').disabled = drawOrder().length === 0;
+    $('exportImageBtn').disabled = drawOrder().length === 0;
   }
 
   let customChosen = false;
@@ -888,11 +1046,35 @@
         refresh();
         commit();
       } catch (error) {
-        toast(`無法讀取檔案:${error.message}`, true);
+        toast(t`無法讀取檔案:${error.message}`, true);
       }
     });
     $('tiltMode').addEventListener('change', (event) => setTiltMode(event.target.checked));
+    $('guideMode').addEventListener('change', (event) => {
+      guide = event.target.value;
+      renderPhone();
+    });
+    $('newProjectBtn').addEventListener('click', newProject);
+    // The button names the language it switches to.
+    $('langBtn').textContent = window.WallI18n.lang === 'en' ? '中文' : 'EN';
+    $('langBtn').addEventListener('click', () => window.WallI18n.setLang(window.WallI18n.lang === 'en' ? 'zh' : 'en'));
+    $('helpBtn').addEventListener('click', () => $('helpDialog').showModal());
+    $('helpClose').addEventListener('click', () => $('helpDialog').close());
+    $('helpDialog').addEventListener('click', (event) => {
+      if (event.target === $('helpDialog')) $('helpDialog').close();
+    });
+    $('welcomeAdd').addEventListener('click', () => $('imageInput').click());
+    $('welcomeOpen').addEventListener('click', () => $('projectInput').click());
+    $('welcomeAssistant').addEventListener('click', () => $('assistantToggle').click());
+    $('welcomeSample').addEventListener('click', async () => {
+      try {
+        await loadSample();
+      } catch (error) {
+        toast(t`無法載入範例:${error.message}`, true);
+      }
+    });
     $('exportBtn').addEventListener('click', exportPack);
+    $('exportImageBtn').addEventListener('click', exportPreview);
     $('saveProjectBtn').addEventListener('click', saveProject);
     $('openProjectBtn').addEventListener('click', () => $('projectInput').click());
     $('projectInput').addEventListener('change', async (event) => {
@@ -915,7 +1097,7 @@
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result);
-      reader.onerror = () => reject(reader.error || new Error('讀取失敗'));
+      reader.onerror = () => reject(reader.error || new Error(t`讀取失敗`));
       reader.readAsDataURL(file);
     });
   }
@@ -924,7 +1106,7 @@
     return new Promise((resolve, reject) => {
       const img = new Image();
       img.onload = () => resolve(img);
-      img.onerror = () => reject(new Error('不是可用的圖片'));
+      img.onerror = () => reject(new Error(t`不是可用的圖片`));
       img.src = src;
     });
   }
@@ -946,10 +1128,10 @@
     video.preload = 'auto';
     await new Promise((resolve, reject) => {
       video.addEventListener('loadeddata', resolve, { once: true });
-      video.addEventListener('error', () => reject(new Error('瀏覽器無法播放這個影片格式')), { once: true });
+      video.addEventListener('error', () => reject(new Error(t`瀏覽器無法播放這個影片格式`)), { once: true });
       video.src = src;
     });
-    if (!video.videoWidth || !video.videoHeight) throw new Error('影片沒有畫面');
+    if (!video.videoWidth || !video.videoHeight) throw new Error(t`影片沒有畫面`);
     video.play().catch(() => {});
 
     // A still for the layer list.
@@ -1010,7 +1192,7 @@
         const imageId = await loadMediaFile(file);
         addLayer(imageId, file.name.replace(/\.[^.]+$/, ''));
       } catch (error) {
-        toast(`無法讀取「${file.name}」:${error.message}`, true);
+        toast(t`無法讀取「${file.name}」:${error.message}`, true);
       }
     }
     refresh();
@@ -1021,7 +1203,7 @@
 
   function canvasBlob(canvas, type, quality) {
     return new Promise((resolve, reject) => {
-      canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('圖片編碼失敗'))), type, quality);
+      canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error(t`圖片編碼失敗`))), type, quality);
     });
   }
 
@@ -1042,7 +1224,7 @@
     const W = state.canvasW;
     const H = state.canvasH;
     const order = drawOrder();
-    if (!order.length) throw new Error('沒有可匯出的圖層');
+    if (!order.length) throw new Error(t`沒有可匯出的圖層`);
 
     const files = [];
     const layers = [];
@@ -1108,7 +1290,7 @@
 
     const manifest = {
       format: 1,
-      name: state.name.trim() || '空間桌布',
+      name: state.name.trim() || t`空間桌布`,
       // The shape everything was laid out on; the app needs it to place video layers.
       canvas: { width: W, height: H },
       parallax: { strength: round(state.strength, 3), focus: round2(state.focus) },
@@ -1130,7 +1312,7 @@
   }
 
   function fileBase() {
-    return (state.name.trim() || '空間桌布').replace(/[\\/:*?"<>|]/g, '_');
+    return (state.name.trim() || t`空間桌布`).replace(/[\\/:*?"<>|]/g, '_');
   }
 
   async function exportPack() {
@@ -1139,72 +1321,239 @@
     try {
       const bytes = await buildPackZip();
       download(bytes, `${fileBase()}.zip`, 'application/zip');
-      toast('已匯出。把這個 .zip 傳到手機,在 App 裡選「匯入 → Shader / 插件包 → 插件包(.zip)」。');
+      toast(t`已匯出。把這個 .zip 傳到手機,在 App 裡選「匯入 → Shader / 插件包 → 插件包(.zip)」。`);
     } catch (error) {
-      toast(`匯出失敗:${error.message}`, true);
+      toast(t`匯出失敗:${error.message}`, true);
     } finally {
       syncToolbar();
     }
   }
 
+  /** Saves the wallpaper as it looks at rest, as one flat picture at canvas size. */
+  async function exportPreview() {
+    try {
+      const W = state.canvasW;
+      const H = state.canvasH;
+      const flat = document.createElement('canvas');
+      flat.width = W;
+      flat.height = H;
+      const ctx = flat.getContext('2d');
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, W, H);
+      const work = document.createElement('canvas');
+      work.width = W;
+      work.height = H;
+      const wctx = work.getContext('2d');
+      for (const layer of drawOrder()) {
+        bakeInto(wctx, layer, W, H);
+        const zoom = parallaxOf(layer.depth).zoom;
+        ctx.save();
+        ctx.globalCompositeOperation = compositeOf(layer);
+        ctx.translate(W / 2, H / 2);
+        ctx.scale(zoom, zoom);
+        ctx.drawImage(work, -W / 2, -H / 2);
+        ctx.restore();
+      }
+      download(await blobBytes(await canvasBlob(flat, 'image/png')), `${fileBase()}.png`, 'image/png');
+    } catch (error) {
+      toast(t`匯出失敗:${error.message}`, true);
+    }
+  }
+
   // ---------------------------------------------------------------- project files
+
+  /** The whole project as one object: the state plus every picture and video it uses, embedded. */
+  async function projectData() {
+    const used = new Set(state.layers.map((l) => l.imageId));
+    const media = {};
+    for (const [id, entry] of images) {
+      if (!used.has(id)) continue;
+      media[id] = entry.kind === 'video'
+        ? { kind: 'video', ext: entry.ext, src: await readAsDataUrl(entry.blob) }
+        : { kind: 'image', src: entry.src, source: entry.source };
+    }
+    return { app: 'wall-spatial-editor', version: 2, state: JSON.parse(snapshot()), images: media };
+  }
 
   /** The project file is self-contained: pictures and videos are embedded as data URLs. */
   async function saveProject() {
     try {
-      const used = new Set(state.layers.map((l) => l.imageId));
-      const media = {};
-      for (const [id, entry] of images) {
-        if (!used.has(id)) continue;
-        media[id] = entry.kind === 'video'
-          ? { kind: 'video', ext: entry.ext, src: await readAsDataUrl(entry.blob) }
-          : { kind: 'image', src: entry.src };
-      }
-      const project = { app: 'wall-spatial-editor', version: 2, state: JSON.parse(snapshot()), images: media };
+      const project = await projectData();
       download(new TextEncoder().encode(JSON.stringify(project)), `${fileBase()}.wallproj.json`, 'application/json');
       dirty = false;
-      toast('專案已儲存,之後可用「開啟專案」繼續編輯。');
+      toast(t`專案已儲存,之後可用「開啟專案」繼續編輯。`);
     } catch (error) {
-      toast(`儲存失敗:${error.message}`, true);
+      toast(t`儲存失敗:${error.message}`, true);
     }
   }
 
   async function openProject(file) {
     try {
-      const project = JSON.parse(await file.text());
-      if (project.app !== 'wall-spatial-editor' || !project.state || !project.images) {
-        throw new Error('不是這個編輯器的專案檔');
-      }
-      // Image and layer ids are renumbered so they cannot clash with ones already in memory.
-      const idMap = {};
-      for (const [oldId, item] of Object.entries(project.images)) {
-        // Version 1 files stored just the picture's data URL.
-        const media = typeof item === 'string' ? { kind: 'image', src: item } : item;
-        if (media.kind === 'video') {
-          const blob = await (await fetch(media.src)).blob();
-          idMap[oldId] = await registerVideo(blob, `video.${media.ext || 'mp4'}`);
-        } else {
-          idMap[oldId] = await registerImage(media.src);
-        }
-      }
-      const data = project.state;
-      data.layers = (data.layers || []).filter((l) => idMap[l.imageId]).map((l) => ({
-        ...l,
-        id: nextId++,
-        imageId: idMap[l.imageId],
-      }));
-      data.selectedId = null;
-      history = [];
-      historyIndex = -1;
-      restore(JSON.stringify(data));
-      commit();
+      await loadProject(JSON.parse(await file.text()));
       dirty = false;
-      toast(`已開啟「${state.name}」`);
+      toast(t`已開啟「${state.name}」`);
     } catch (error) {
-      toast(`無法開啟專案:${error.message}`, true);
+      toast(t`無法開啟專案:${error.message}`, true);
     }
   }
 
+  /** Replaces everything with the given project (as made by projectData). */
+  async function loadProject(project) {
+    if (!project || project.app !== 'wall-spatial-editor' || !project.state || !project.images) {
+      throw new Error(t`不是這個編輯器的專案檔`);
+    }
+    // Image and layer ids are renumbered so they cannot clash with ones already in memory.
+    const idMap = {};
+    for (const [oldId, item] of Object.entries(project.images)) {
+      // Version 1 files stored just the picture's data URL.
+      const media = typeof item === 'string' ? { kind: 'image', src: item } : item;
+      if (media.kind === 'video') {
+        const blob = await (await fetch(media.src)).blob();
+        idMap[oldId] = await registerVideo(blob, `video.${media.ext || 'mp4'}`);
+      } else {
+        idMap[oldId] = await registerImage(media.src);
+        // Artwork drawn by the assistant keeps its source, so it can still be revised.
+        if (media.source) images.get(idMap[oldId]).source = media.source;
+      }
+    }
+    const data = project.state;
+    data.layers = (data.layers || []).filter((l) => idMap[l.imageId]).map((l) => ({
+      ...l,
+      id: nextId++,
+      imageId: idMap[l.imageId],
+    }));
+    data.selectedId = null;
+    history = [];
+    historyIndex = -1;
+    restore(JSON.stringify(data));
+    commit();
+  }
+
+  function newProject() {
+    if (state.layers.length && !window.confirm(t`要開始新專案嗎?目前的圖層會被清除(可先用「儲存專案」留存)。`)) return;
+    Object.assign(state, { name: t`我的空間桌布`, strength: 0.04, focus: 1, effect: 'none', layers: [], selectedId: null });
+    baked.clear();
+    history = [];
+    historyIndex = -1;
+    refresh();
+    commit();
+    dirty = false;
+  }
+
+  // ---------------------------------------------------------------- autosave
+  //
+  // The project is kept in the browser's own storage (IndexedDB) a moment after every change and
+  // brought back when the editor is opened again, so a closed tab or a crash loses nothing.
+
+  const AUTOSAVE_DELAY = 1500;
+  let autosaveTimer = 0;
+  /** False once saving has failed (storage full or unavailable): leaving the page then warns. */
+  let autosaveWorks = true;
+
+  function autosaveStore(mode) {
+    return new Promise((resolve, reject) => {
+      const open = indexedDB.open('spatialEditor', 1);
+      open.onupgradeneeded = () => open.result.createObjectStore('projects');
+      open.onerror = () => reject(open.error);
+      open.onsuccess = () => {
+        const db = open.result;
+        const tx = db.transaction('projects', mode);
+        tx.oncomplete = () => db.close();
+        resolve(tx.objectStore('projects'));
+      };
+    });
+  }
+
+  function scheduleAutosave() {
+    clearTimeout(autosaveTimer);
+    autosaveTimer = setTimeout(async () => {
+      try {
+        const project = await projectData();
+        const store = await autosaveStore('readwrite');
+        await new Promise((resolve, reject) => {
+          const put = store.put(project, 'autosave');
+          put.onsuccess = resolve;
+          put.onerror = () => reject(put.error);
+        });
+        autosaveWorks = true;
+        dirty = false;
+        $('saveState').textContent = t`已自動儲存`;
+      } catch (error) {
+        autosaveWorks = false;
+        $('saveState').textContent = t`無法自動儲存,請用「儲存專案」`;
+      }
+    }, AUTOSAVE_DELAY);
+    $('saveState').textContent = '';
+  }
+
+  async function restoreAutosave() {
+    try {
+      const store = await autosaveStore('readonly');
+      const project = await new Promise((resolve, reject) => {
+        const get = store.get('autosave');
+        get.onsuccess = () => resolve(get.result);
+        get.onerror = () => reject(get.error);
+      });
+      if (!project || !project.state || !(project.state.layers || []).length) return;
+      await loadProject(project);
+      dirty = false;
+      toast(t`已還原上次的工作「${state.name}」。`);
+    } catch (error) {
+      // Nothing saved, or storage is unavailable: start empty.
+    }
+  }
+
+  // ---------------------------------------------------------------- sample scene
+
+  /** A small finished scene, so a first-time visitor has something to tilt and take apart. */
+  async function loadSample() {
+    const W = state.canvasW;
+    const H = state.canvasH;
+    const svg = (body) => `<svg xmlns="${SVG_NS}" viewBox="0 0 ${W} ${H}">${body}</svg>`;
+    /** A ridge line from left to right: a closed shape from `top` (fraction of H) down to the bottom. */
+    const ridge = (top, rough, seed, fill) => {
+      let d = `M${-0.06 * W} ${H * 1.05}`;
+      for (let i = 0; i <= 24; i++) {
+        const x = -0.06 * W + (1.12 * W * i) / 24;
+        const y = H * (top + rough * (Math.sin(i * 0.9 + seed) * 0.6 + Math.sin(i * 2.3 + seed * 2) * 0.4));
+        d += ` L${x.toFixed(1)} ${y.toFixed(1)}`;
+      }
+      return `<path d="${d} L${1.06 * W} ${H * 1.05} Z" fill="${fill}"/>`;
+    };
+    const pine = (x, base, size, fill) => {
+      const w = size * 0.42;
+      let d = '';
+      for (let k = 0; k < 4; k++) {
+        const y = base - size * (0.2 + k * 0.2);
+        const half = w * (1 - k * 0.2);
+        d += `M${x - half} ${y} L${x} ${y - size * 0.34} L${x + half} ${y} Z `;
+      }
+      return `<path d="${d}" fill="${fill}"/><rect x="${x - size * 0.035}" y="${base - size * 0.22}" width="${size * 0.07}" height="${size * 0.24}" fill="${fill}"/>`;
+    };
+    let trees = '';
+    for (let i = 0; i < 9; i++) trees += pine(W * (-0.02 + i * 0.13 + (i % 3) * 0.02), H * (0.83 + (i % 2) * 0.03), H * (0.2 + (i % 4) * 0.035), '#0e1424');
+    const stars = Array.from({ length: 70 }, (_, i) => {
+      const x = (i * 197.3) % W;
+      const y = ((i * 331.7) % (H * 0.42));
+      return `<circle cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" r="${1.5 + (i % 3)}" fill="#fff" opacity="${0.35 + (i % 5) * 0.12}"/>`;
+    }).join('');
+
+    state.name = t`範例・黃昏山谷`;
+    const layers = [
+      [t`天空`, 1, `<defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#141a3c"/><stop offset="0.45" stop-color="#5a3a78"/><stop offset="0.7" stop-color="#e0785a"/><stop offset="1" stop-color="#f6c070"/></linearGradient><radialGradient id="sun"><stop offset="0" stop-color="#fff3c8"/><stop offset="0.35" stop-color="#ffd27a" stop-opacity="0.9"/><stop offset="1" stop-color="#ffb060" stop-opacity="0"/></radialGradient></defs><rect width="${W}" height="${H}" fill="url(#sky)"/>${stars}<circle cx="${W * 0.62}" cy="${H * 0.6}" r="${W * 0.42}" fill="url(#sun)"/><circle cx="${W * 0.62}" cy="${H * 0.6}" r="${W * 0.085}" fill="#fff3c8"/>`],
+      [t`遠山`, 0.8, ridge(0.6, 0.035, 1.3, '#7a5a8c')],
+      [t`中景山丘`, 0.55, ridge(0.69, 0.03, 4.1, '#3f3a66')],
+      [t`近丘`, 0.3, ridge(0.79, 0.022, 2.2, '#1f2444')],
+      [t`樹林`, 0.08, trees + ridge(0.9, 0.012, 5.5, '#0e1424')],
+    ];
+    for (const [name, depth, body] of layers) await agent.addSvgLayer({ name, depth, svg: svg(body) });
+    state.selectedId = null;
+    refresh();
+    commit();
+    setTiltMode(true);
+  }
+
+  // ---------------------------------------------------------------- misc UI
   // ---------------------------------------------------------------- misc UI
 
   let toastTimer = 0;
@@ -1249,12 +1598,17 @@
       return;
     }
     if (isTyping(event.target)) return;
+    if (event.key === '?') {
+      $('helpDialog').showModal();
+      return;
+    }
     const layer = selected();
     if (!layer) return;
     const step = event.shiftKey ? 0.02 : 0.004;
     const moves = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
     if (moves[event.key]) {
       event.preventDefault();
+      if (layer.locked) return;
       layer.x = clamp(layer.x + moves[event.key][0], -1, 1);
       layer.y = clamp(layer.y + moves[event.key][1], -1, 1);
       layerChanged(layer);
@@ -1289,7 +1643,7 @@
   });
 
   window.addEventListener('beforeunload', (event) => {
-    if (dirty && state.layers.length) event.preventDefault();
+    if (dirty && !autosaveWorks && state.layers.length) event.preventDefault();
   });
 
   new ResizeObserver(() => {
@@ -1299,23 +1653,462 @@
 
   // ---------------------------------------------------------------- start
 
+  // A problem nobody handled should still be visible to the person, not only in the console.
+  window.addEventListener('error', (event) => toast(t`發生未預期的錯誤:${event.message}`, true));
+  window.addEventListener('unhandledrejection', (event) => {
+    const reason = event.reason;
+    toast(t`發生未預期的錯誤:${(reason && reason.message) || reason}`, true);
+  });
+
   buildToolbar();
   buildProperties();
   refresh();
   commit();
   dirty = false;
+  restoreAutosave();
+
+  // ---------------------------------------------------------------- drawn layers (AI assistant)
+  //
+  // What the assistant (js/assistant.js) can do to the scene. Its layers are ordinary image
+  // layers: artwork written as SVG or as a grid of pixels is rasterised once at canvas size, so
+  // everything else (preview, export, undo, hand editing) treats it like an imported picture.
+  // The artwork's source is kept on the image entry so it can be read back and revised.
+
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  /** Pictures the person gave the assistant; SVG artwork can show them as href="ref:1", "ref:2"... */
+  const references = [];
+
+  /**
+   * Checks and tidies SVG written by the model. Returns the markup to keep as the layer's source
+   * (references still as "ref:N") and the markup to rasterise (references filled in).
+   */
+  function prepareSvg(text) {
+    let markup = String(text).trim();
+    if (!/^<svg[\s>]/.test(markup.replace(/^<\?xml[^>]*>\s*/, '').replace(/^<!--[\s\S]*?-->\s*/, ''))) {
+      throw new Error('The artwork must be a single SVG document starting with <svg ...>.');
+    }
+    if (!/xmlns\s*=/.test(markup.slice(0, markup.indexOf('>') + 1))) {
+      markup = markup.replace(/<svg/, `<svg xmlns="${SVG_NS}"`);
+    }
+    const doc = new DOMParser().parseFromString(markup, 'image/svg+xml');
+    const problem = doc.querySelector('parsererror');
+    if (problem) throw new Error(`SVG is not well-formed XML: ${problem.textContent.trim().slice(0, 300)}`);
+    const root = doc.documentElement;
+    if (root.namespaceURI !== SVG_NS || root.localName !== 'svg') throw new Error('The root element must be <svg>.');
+
+    // Nothing in a layer may run or load anything: it is a picture, and it is saved in projects.
+    doc.querySelectorAll('script, foreignObject, iframe, object, embed, audio, video').forEach((el) => el.remove());
+    const notes = [];
+    for (const el of [root, ...root.querySelectorAll('*')]) {
+      for (const attr of Array.from(el.attributes)) {
+        const name = attr.name.toLowerCase();
+        if (name.startsWith('on')) el.removeAttribute(attr.name);
+        if (name !== 'href' && name !== 'xlink:href') continue;
+        const value = attr.value.trim();
+        const ref = /^ref:(\d+)$/.exec(value);
+        if (value.startsWith('#') || value.startsWith('data:image/')) continue;
+        if (ref && references[Number(ref[1]) - 1]) continue;
+        el.removeAttribute(attr.name);
+        notes.push(`removed ${attr.name}="${value.slice(0, 60)}" (only #ids, data:image/ and existing ref:N are allowed)`);
+      }
+    }
+    root.setAttribute('width', state.canvasW);
+    root.setAttribute('height', state.canvasH);
+    if (!root.getAttribute('viewBox')) root.setAttribute('viewBox', `0 0 ${state.canvasW} ${state.canvasH}`);
+
+    const source = new XMLSerializer().serializeToString(doc);
+    for (const el of root.querySelectorAll('*')) {
+      for (const name of ['href', 'xlink:href']) {
+        const ref = /^ref:(\d+)$/.exec((el.getAttribute(name) || '').trim());
+        if (ref) el.setAttribute(name, references[Number(ref[1]) - 1].src);
+      }
+    }
+    return { source, drawable: new XMLSerializer().serializeToString(doc), viewBox: root.getAttribute('viewBox'), notes };
+  }
+
+  async function rasteriseSvg(drawable) {
+    const url = URL.createObjectURL(new Blob([drawable], { type: 'image/svg+xml' }));
+    try {
+      const img = await loadImage(url).catch(() => {
+        throw new Error('The browser could not draw this SVG. Check for unsupported or malformed elements.');
+      });
+      const canvas = document.createElement('canvas');
+      canvas.width = state.canvasW;
+      canvas.height = state.canvasH;
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      return canvas;
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  function rasterisePixels(spec) {
+    const cell = spec.pixel_size;
+    const canvas = document.createElement('canvas');
+    canvas.width = state.canvasW;
+    canvas.height = state.canvasH;
+    const ctx = canvas.getContext('2d');
+    const x0 = Math.round(spec.x || 0);
+    const y0 = Math.round(spec.y || 0);
+    spec.rows.forEach((row, j) => {
+      Array.from(row).forEach((ch, i) => {
+        const color = spec.palette[ch];
+        if (!color) return; // any character without a palette entry is transparent
+        ctx.fillStyle = color;
+        ctx.fillRect(x0 + i * cell, y0 + j * cell, cell, cell);
+      });
+    });
+    return canvas;
+  }
+
+  /** Share of the canvas a drawing covers and whether it reaches each edge, so gaps are noticed without looking. */
+  function coverageOf(canvas) {
+    const small = document.createElement('canvas');
+    small.width = 54;
+    small.height = Math.max(1, Math.round(54 * canvas.height / canvas.width));
+    const ctx = small.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(canvas, 0, 0, small.width, small.height);
+    const data = ctx.getImageData(0, 0, small.width, small.height).data;
+    let painted = 0;
+    let opaque = 0;
+    for (let i = 3; i < data.length; i += 4) {
+      if (data[i] > 8) painted++;
+      if (data[i] > 250) opaque++;
+    }
+    const total = small.width * small.height;
+    return { painted: round2(painted / total), fully_opaque: opaque === total };
+  }
+
+  async function registerDrawing(canvas, source) {
+    const imageId = await registerImage(canvas.toDataURL('image/png'));
+    images.get(imageId).source = source;
+    return imageId;
+  }
+
+  function drawnLayer(imageId, name, depth) {
+    const layer = {
+      id: nextId++,
+      imageId,
+      name: String(name || t`圖層`).slice(0, 60),
+      depth: round2(clamp(Number(depth), 0, 1)),
+      x: 0,
+      y: 0,
+      scale: 1,
+      rotation: 0,
+      opacity: 1,
+      flip: false,
+      blend: 'normal',
+      visible: true,
+    };
+    state.layers.push(layer);
+    state.selectedId = layer.id;
+    refresh();
+    commit();
+    return layer;
+  }
+
+  function layerById(id) {
+    const layer = state.layers.find((l) => l.id === Number(id));
+    if (!layer) throw new Error(`There is no layer with id ${id}. Call get_scene for the current ids.`);
+    return layer;
+  }
+
+  function describeLayer(layer) {
+    const entry = images.get(layer.imageId);
+    const made = entry && entry.source ? entry.source.type : (entry && entry.kind === 'video' ? 'video' : 'imported image');
+    return {
+      id: layer.id,
+      name: layer.name,
+      depth: layer.depth,
+      artwork: made,
+      x: round(layer.x, 3),
+      y: round(layer.y, 3),
+      scale: round(layer.scale, 3),
+      rotation: layer.rotation,
+      opacity: layer.opacity,
+      visible: layer.visible,
+    };
+  }
+
+  /** The scene as the phone shows it, at preview size, for the given tilt (each axis -1..1). */
+  function renderScene(options) {
+    const { W, H } = previewSize();
+    const canvas = document.createElement('canvas');
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    const only = options.onlyLayerId == null ? null : layerById(options.onlyLayerId);
+    if (only) {
+      // A single layer on a checkerboard, so its transparent parts can be told from dark paint.
+      for (let y = 0; y < H; y += 25) {
+        for (let x = 0; x < W; x += 25) {
+          ctx.fillStyle = ((x + y) / 25) % 2 ? '#3a3d4a' : '#555a6c';
+          ctx.fillRect(x, y, 25, 25);
+        }
+      }
+      ctx.drawImage(bakedCanvas(only), 0, 0, W, H);
+    } else {
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, W, H);
+      const tx = clamp(Number(options.tiltX) || 0, -1, 1);
+      const ty = clamp(Number(options.tiltY) || 0, -1, 1);
+      for (const layer of drawOrder()) {
+        const p = parallaxOf(layer.depth);
+        ctx.save();
+        ctx.globalCompositeOperation = compositeOf(layer);
+        ctx.translate(W / 2 + tx * p.shift * W, H / 2 + ty * p.shift * H);
+        ctx.scale(p.zoom, p.zoom);
+        ctx.drawImage(bakedCanvas(layer), -W / 2, -H / 2, W, H);
+        ctx.restore();
+      }
+    }
+    return { dataUrl: canvas.toDataURL('image/jpeg', 0.85), width: W, height: H };
+  }
+
+  const agent = {
+    /** Registers a picture the person attached; returns the number to use as "ref:N". */
+    addReference(src, w, h, origin) {
+      references.push({ src, w, h, origin: origin || 'attached' });
+      return references.length;
+    },
+
+    /** The picture behind "ref:N" (or N), or an error the model can act on. */
+    reference(ref) {
+      const match = /^(?:ref:)?(\d+)$/.exec(String(ref).trim());
+      const found = match && references[Number(match[1]) - 1];
+      if (!found) throw new Error(`There is no picture "${ref}". Available: ${references.map((r, i) => `ref:${i + 1}`).join(', ') || 'none'}.`);
+      return { ...found, index: Number(match[1]) };
+    },
+
+    /** A picture as the model should see it: at most `maxSide` px, transparency as a checkerboard. */
+    async previewReference(ref, maxSide) {
+      const picture = agent.reference(ref);
+      const img = await loadImage(picture.src);
+      const scale = Math.min(1, (maxSide || 1024) / Math.max(picture.w, picture.h));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(picture.w * scale));
+      canvas.height = Math.max(1, Math.round(picture.h * scale));
+      const ctx = canvas.getContext('2d');
+      for (let y = 0; y < canvas.height; y += 24) {
+        for (let x = 0; x < canvas.width; x += 24) {
+          ctx.fillStyle = ((x + y) / 24) % 2 ? '#3a3d4a' : '#555a6c';
+          ctx.fillRect(x, y, 24, 24);
+        }
+      }
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      return { dataUrl: canvas.toDataURL('image/jpeg', 0.85), width: picture.w, height: picture.h, index: picture.index };
+    },
+
+    /**
+     * Cuts a flat background out of a picture and registers the result as a new reference.
+     * Pixels close to the background colour become transparent; a band beyond that fades, and
+     * the background's tint is taken back out of the fading pixels so edges do not glow.
+     */
+    async removeBackground(ref, color, tolerance) {
+      const picture = agent.reference(ref);
+      const img = await loadImage(picture.src);
+      const canvas = document.createElement('canvas');
+      canvas.width = picture.w;
+      canvas.height = picture.h;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(img, 0, 0);
+      const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = pixels.data;
+      let key;
+      if (color) {
+        const hex = /^#?([0-9a-f]{6})$/i.exec(String(color).trim());
+        if (!hex) throw new Error('color must look like #rrggbb.');
+        key = [0, 2, 4].map((i) => parseInt(hex[1].slice(i, i + 2), 16));
+      } else {
+        // The four corners, a few pixels in: the median of each channel.
+        const at = (x, y) => (y * canvas.width + x) * 4;
+        const inset = Math.min(4, canvas.width - 1, canvas.height - 1);
+        const corners = [at(inset, inset), at(canvas.width - 1 - inset, inset), at(inset, canvas.height - 1 - inset), at(canvas.width - 1 - inset, canvas.height - 1 - inset)];
+        key = [0, 1, 2].map((c) => corners.map((i) => data[i + c]).sort((a, b) => a - b)[1]);
+      }
+      const inner = clamp(tolerance === undefined ? 0.18 : Number(tolerance), 0.01, 0.9) * 441.7;
+      const outer = inner * 1.7;
+      const tight = inner * 0.55;
+      const w = canvas.width;
+      const h = canvas.height;
+      const distance = new Float32Array(w * h);
+      for (let i = 0, p = 0; p < distance.length; i += 4, p++) {
+        distance[p] = Math.hypot(data[i] - key[0], data[i + 1] - key[1], data[i + 2] - key[2]);
+      }
+      // Background is what can be reached from the picture's border through background-coloured
+      // pixels. A patch of the same colour inside the subject (a green eye on a green backdrop)
+      // is not reached and stays; pockets the border cannot reach (between an arm and the body)
+      // are caught by the tighter test below, since a generated backdrop is nearly one flat colour.
+      const reached = new Uint8Array(w * h);
+      const queue = new Int32Array(w * h);
+      let head = 0;
+      let tail = 0;
+      const visit = (p) => {
+        if (reached[p] || distance[p] >= outer) return;
+        reached[p] = 1;
+        queue[tail++] = p;
+      };
+      for (let x = 0; x < w; x++) {
+        visit(x);
+        visit((h - 1) * w + x);
+      }
+      for (let y = 0; y < h; y++) {
+        visit(y * w);
+        visit(y * w + w - 1);
+      }
+      while (head < tail) {
+        const p = queue[head++];
+        // Spread only through pixels that are clearly background; the fading band is where it stops.
+        if (distance[p] > inner) continue;
+        const x = p % w;
+        if (x > 0) visit(p - 1);
+        if (x < w - 1) visit(p + 1);
+        if (p >= w) visit(p - w);
+        if (p < w * (h - 1)) visit(p + w);
+      }
+      let cleared = 0;
+      for (let p = 0, i = 0; p < distance.length; p++, i += 4) {
+        const d = distance[p];
+        if ((reached[p] && d <= inner) || d <= tight) {
+          data[i + 3] = 0;
+          cleared++;
+        } else if (reached[p]) {
+          // The edge of the subject: fade it, and take the backdrop's tint back out so it does not glow.
+          const a = (d - inner) / (outer - inner);
+          for (let c = 0; c < 3; c++) data[i + c] = clamp(Math.round((data[i + c] - key[c] * (1 - a)) / a), 0, 255);
+          data[i + 3] = Math.round(data[i + 3] * a);
+        }
+      }
+      ctx.putImageData(pixels, 0, 0);
+      const index = agent.addReference(canvas.toDataURL('image/png'), canvas.width, canvas.height, 'cut-out');
+      const hex = `#${key.map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+      return { image: `ref:${index}`, removed_color: hex, share_made_transparent: round2(cleared / (data.length / 4)) };
+    },
+
+    /** Places a picture on a new layer as it is. */
+    async addImageLayer(p) {
+      const picture = agent.reference(p.image);
+      const imageId = await registerImage(picture.src);
+      const entry = images.get(imageId);
+      entry.source = { type: 'picture', image: `ref:${picture.index}` };
+      const fit = p.fit === 'contain' ? containFactor(entry) : 1;
+      const layer = drawnLayer(imageId, p.name, p.depth);
+      layer.scale = clamp(fit * (p.scale === undefined ? 1 : Number(p.scale)), 0.02, 8);
+      layer.x = clamp(Number(p.x) || 0, -1, 1);
+      layer.y = clamp(Number(p.y) || 0, -1, 1);
+      refresh();
+      commit();
+      return { layer_id: layer.id, ...describeLayer(layer) };
+    },
+
+    scene() {
+      return {
+        name: state.name,
+        canvas: { width: state.canvasW, height: state.canvasH },
+        parallax: { strength: state.strength, focus: state.focus },
+        effect: state.effect,
+        available_effects: Object.keys(window.WallEffects),
+        layers_far_to_near: state.layers.slice().sort((a, b) => b.depth - a.depth).map(describeLayer),
+        pictures: references.map((r, i) => ({ image: `ref:${i + 1}`, width: r.w, height: r.h, from: r.origin })),
+      };
+    },
+
+    setScene(p) {
+      // Refuse the whole call before changing anything, so a rejected call leaves no half-applied change.
+      if (p.effect !== undefined && !window.WallEffects[p.effect]) {
+        throw new Error(`Unknown effect "${p.effect}". Use one of: ${Object.keys(window.WallEffects).join(', ')}.`);
+      }
+      if ((p.canvas_width !== undefined || p.canvas_height !== undefined) && state.layers.length) {
+        throw new Error('The canvas size can only be changed while there are no layers: drawn layers would not match the new size.');
+      }
+      if (p.name !== undefined) state.name = String(p.name).slice(0, 80);
+      if (p.parallax_strength !== undefined) state.strength = clamp(Number(p.parallax_strength), 0, 0.1);
+      if (p.parallax_focus !== undefined) state.focus = clamp(Number(p.parallax_focus), 0, 1);
+      if (p.effect !== undefined) state.effect = p.effect;
+      if (p.canvas_width !== undefined || p.canvas_height !== undefined) {
+        state.canvasW = clamp(Math.round(Number(p.canvas_width) || state.canvasW), 240, 4320);
+        state.canvasH = clamp(Math.round(Number(p.canvas_height) || state.canvasH), 240, 7680);
+      }
+      refresh();
+      commit();
+      return agent.scene();
+    },
+
+    async addSvgLayer(p) {
+      const svg = prepareSvg(p.svg);
+      const canvas = await rasteriseSvg(svg.drawable);
+      const layer = drawnLayer(await registerDrawing(canvas, { type: 'svg', svg: svg.source }), p.name, p.depth);
+      return { layer_id: layer.id, depth: layer.depth, viewBox: svg.viewBox, coverage: coverageOf(canvas), notes: svg.notes };
+    },
+
+    async addPixelLayer(p) {
+      // The palette arrives as [{ char, color }]; a plain { char: color } object is accepted too.
+      const palette = Array.isArray(p.palette)
+        ? Object.fromEntries(p.palette.map((entry) => [entry.char, entry.color]))
+        : p.palette;
+      const spec = { pixel_size: Math.max(1, Math.round(p.pixel_size)), palette, rows: p.rows, x: p.x || 0, y: p.y || 0 };
+      const canvas = rasterisePixels(spec);
+      const layer = drawnLayer(await registerDrawing(canvas, { type: 'pixels', ...spec }), p.name, p.depth);
+      return { layer_id: layer.id, depth: layer.depth, coverage: coverageOf(canvas) };
+    },
+
+    /** Replaces a layer's artwork, keeping its depth and placement. */
+    async replaceArt(id, svgText) {
+      const layer = layerById(id);
+      const svg = prepareSvg(svgText);
+      const canvas = await rasteriseSvg(svg.drawable);
+      layer.imageId = await registerDrawing(canvas, { type: 'svg', svg: svg.source });
+      refresh();
+      commit();
+      return { layer_id: layer.id, viewBox: svg.viewBox, coverage: coverageOf(canvas), notes: svg.notes };
+    },
+
+    readArt(id) {
+      const entry = images.get(layerById(id).imageId);
+      if (!entry || !entry.source) throw new Error('This layer is an imported picture or video; it has no editable source.');
+      return entry.source;
+    },
+
+    updateLayer(id, p) {
+      const layer = layerById(id);
+      if (p.name !== undefined) layer.name = String(p.name).slice(0, 60);
+      if (p.depth !== undefined) layer.depth = round2(clamp(Number(p.depth), 0, 1));
+      if (p.x !== undefined) layer.x = clamp(Number(p.x), -1, 1);
+      if (p.y !== undefined) layer.y = clamp(Number(p.y), -1, 1);
+      if (p.scale !== undefined) layer.scale = clamp(Number(p.scale), 0.02, 8);
+      if (p.rotation !== undefined) layer.rotation = clamp(Number(p.rotation), -180, 180);
+      if (p.opacity !== undefined) layer.opacity = clamp(Number(p.opacity), 0, 1);
+      if (p.visible !== undefined) layer.visible = !!p.visible;
+      refresh();
+      commit();
+      return describeLayer(layer);
+    },
+
+    deleteLayer(id) {
+      const layer = layerById(id);
+      state.layers = state.layers.filter((l) => l !== layer);
+      baked.delete(layer.id);
+      if (state.selectedId === layer.id) state.selectedId = null;
+      refresh();
+      commit();
+      return { deleted: layer.id, remaining: state.layers.length };
+    },
+
+    render: renderScene,
+  };
 
   // For scripted use (tests, automation): add layers and build the pack bytes.
   window.spatialEditor = {
+    agent,
     state,
     async addImage(src, name) {
-      const layer = addLayer(await registerImage(src), name || '圖層');
+      const layer = addLayer(await registerImage(src), name || t`圖層`);
       refresh();
       commit();
       return layer;
     },
     async addVideo(blob, fileName) {
-      const layer = addLayer(await registerVideo(blob, fileName), (fileName || '影片').replace(/\.[^.]+$/, ''));
+      const layer = addLayer(await registerVideo(blob, fileName), (fileName || t`影片`).replace(/\.[^.]+$/, ''));
       refresh();
       commit();
       return layer;
