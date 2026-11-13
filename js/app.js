@@ -1503,7 +1503,21 @@
     return window.WallZip.makeZip(files);
   }
 
-  function download(bytes, filename, type) {
+  /**
+   * Hands a finished file to the person. In a browser it is downloaded; in the desktop app a
+   * "Save as" dialog picks where it goes. Resolves to false when the person cancelled.
+   */
+  async function download(bytes, filename, type) {
+    if (window.WALL_DESKTOP) {
+      const response = await fetch('/api/save', {
+        method: 'POST',
+        headers: { 'x-wall-editor': '1', 'x-wall-filename': encodeURIComponent(filename), 'Content-Type': type },
+        body: bytes,
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || `HTTP ${response.status}`);
+      return !!result.saved;
+    }
     const url = URL.createObjectURL(new Blob([bytes], { type }));
     const link = document.createElement('a');
     link.href = url;
@@ -1512,6 +1526,7 @@
     link.click();
     link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 10000);
+    return true;
   }
 
   function fileBase() {
@@ -1523,7 +1538,7 @@
     button.disabled = true;
     try {
       const bytes = await buildPackZip();
-      download(bytes, `${fileBase()}.zip`, 'application/zip');
+      if (!(await download(bytes, `${fileBase()}.zip`, 'application/zip'))) return;
       toast(t`已匯出。把這個 .zip 傳到手機,在 App 裡選「匯入 → Shader / 插件包 → 插件包(.zip)」。`);
     } catch (error) {
       toast(t`匯出失敗:${error.message}`, true);
@@ -1557,7 +1572,7 @@
         ctx.drawImage(work, -W / 2, -H / 2);
         ctx.restore();
       }
-      download(await blobBytes(await canvasBlob(flat, 'image/png')), `${fileBase()}.png`, 'image/png');
+      await download(await blobBytes(await canvasBlob(flat, 'image/png')), `${fileBase()}.png`, 'image/png');
     } catch (error) {
       toast(t`匯出失敗:${error.message}`, true);
     }
@@ -1582,7 +1597,7 @@
   async function saveProject() {
     try {
       const project = await projectData();
-      download(new TextEncoder().encode(JSON.stringify(project)), `${fileBase()}.wallproj.json`, 'application/json');
+      if (!(await download(new TextEncoder().encode(JSON.stringify(project)), `${fileBase()}.wallproj.json`, 'application/json'))) return;
       dirty = false;
       toast(t`專案已儲存,之後可用「開啟專案」繼續編輯。`);
     } catch (error) {

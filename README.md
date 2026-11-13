@@ -10,7 +10,26 @@
   python serve.py --open
   ```
 
+  Windows 上也可以直接雙擊 `啟動編輯器.bat`:它會執行上面這行並開啟瀏覽器;
+  編輯器已經在執行時只開瀏覽器。關掉它的視窗就結束編輯器。
+
   它只監聽本機(127.0.0.1:8765),詳見下方「用 ChatGPT 登入」。
+
+- **桌面程式**(Windows,用 Tauri 打包,不需要 Python 也不開瀏覽器):
+
+  ```bash
+  cd src-tauri
+  cargo tauri build
+  ```
+
+  產出 `src-tauri/target/release/planetarium-editor.exe`(可直接執行)和
+  `src-tauri/target/release/bundle/nsis/` 裡的安裝檔。建置需要 Rust 與 `cargo install tauri-cli`;
+  執行需要 WebView2(Windows 11 內建)。開發時用 `cargo tauri dev`。
+
+  桌面程式把 `serve.py` 的功能用 Rust 重寫在程式裡(`src-tauri/src/server.rs`),編輯器的檔案也內建其中:
+  視窗載入的是程式自己在 127.0.0.1:8766 開的本機伺服器,所以「用 ChatGPT 登入」、OpenAI 轉送都和瀏覽器版相同,
+  登入狀態也和 `serve.py` 共用。差別只有兩處:匯出與儲存會跳出「另存新檔」對話框;登入頁開在系統瀏覽器。
+  自動存檔與設定跟著網址走,所以桌面程式和瀏覽器版各有一份。
 
 ## 怎麼用
 
@@ -140,6 +159,9 @@ thumb.jpg         App 桌布庫顯示的縮圖
   `npx esbuild entry.mjs --bundle --format=iife --global-name=AnthropicSDK --platform=browser --minify`,
   其中 `entry.mjs` 內容為 `import Anthropic from "@anthropic-ai/sdk"; export default Anthropic;`
 - `serve.py`:本機輔助程式(ChatGPT 登入、轉送 OpenAI 請求),只用 Python 標準函式庫
+- `src-tauri/`:桌面程式(Tauri 2)。`src/server.rs` 是 `serve.py` 的 Rust 版,兩邊的路由要保持一致;
+  `build.rs` 只把 `index.html`、`style.css`、`js/` 內建進程式
+- `啟動編輯器.bat`:Windows 的一鍵啟動器。內容必須維持純 ASCII,cmd 會把批次檔裡的中文解析錯
 - `js/zip.js`:不壓縮的 ZIP 寫入器
 - `js/effects.js`:動態效果的 shader 原始碼,與 App 內 `assets/effects` 相同;兩邊修改時要同步
 - `js/i18n.js`、`js/i18n-en.js`:介面語言與英文翻譯表。新增或修改介面文字後執行 `node tools/i18n-scan.js`,

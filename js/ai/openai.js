@@ -284,7 +284,8 @@
       },
       /** Opens OpenAI's sign-in page in a new tab and waits until the helper has the tokens. */
       async signIn() {
-        const tab = window.open('about:blank', '_blank');
+        // The desktop app opens the sign-in in the system browser itself.
+        const tab = window.WALL_DESKTOP ? null : window.open('about:blank', '_blank');
         let started;
         try {
           started = await helperCall('/api/openai/signin', 'POST');
@@ -292,7 +293,9 @@
           if (tab) tab.close();
           throw error;
         }
-        if (tab) tab.location = started.url;
+        if (started.opened) {
+          // Already open in the system browser.
+        } else if (tab) tab.location = started.url;
         else window.location.assign(started.url); // pop-ups are blocked: sign in in this tab instead
         const deadline = Date.now() + 5 * 60 * 1000;
         while (Date.now() < deadline) {
