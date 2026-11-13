@@ -24,6 +24,7 @@
     set_scene: t`調整場景設定`,
     add_svg_layer: t`繪製圖層`,
     add_pixel_layer: t`繪製像素圖層`,
+    add_shader_layer: t`加入動態圖層`,
     add_image_layer: t`放上圖片`,
     update_layer_art: t`重畫圖層`,
     read_layer_art: t`讀取圖層原稿`,
@@ -113,16 +114,18 @@
       case 'set_scene': return text(editor.setScene(input));
       case 'add_svg_layer': return text(await editor.addSvgLayer(input));
       case 'add_pixel_layer': return text(await editor.addPixelLayer(input));
+      case 'add_shader_layer': return text(await editor.addShaderLayer(input));
       case 'add_image_layer': return text(await editor.addImageLayer(input));
-      case 'update_layer_art': return text(await editor.replaceArt(input.layer_id, input.svg));
+      case 'update_layer_art': return text(await editor.replaceArt(input.layer_id, input));
       case 'read_layer_art': return text(editor.readArt(input.layer_id));
       case 'update_layer': return text(editor.updateLayer(input.layer_id, input));
       case 'delete_layer': return text(editor.deleteLayer(input.layer_id));
       case 'view_canvas': {
-        const shot = editor.render({ tiltX: input.tilt_x, tiltY: input.tilt_y, onlyLayerId: input.only_layer_id });
+        const shot = editor.render({ tiltX: input.tilt_x, tiltY: input.tilt_y, onlyLayerId: input.only_layer_id, time: input.time });
+        const at = input.time === undefined ? '' : `, shader layers at ${input.time} s`;
         const note = input.only_layer_id != null
-          ? `Layer ${input.only_layer_id} alone; the checkerboard is transparent.`
-          : `The wallpaper at tilt (${input.tilt_x || 0}, ${input.tilt_y || 0}), ${shot.width}×${shot.height} preview.`;
+          ? `Layer ${input.only_layer_id} alone${at}; the checkerboard is transparent.`
+          : `The wallpaper at tilt (${input.tilt_x || 0}, ${input.tilt_y || 0})${at}, ${shot.width}×${shot.height} preview.`;
         return [picture(shot.dataUrl), { type: 'text', text: note }];
       }
       case 'view_image': {

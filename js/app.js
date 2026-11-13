@@ -100,12 +100,50 @@
     return !!entry && entry.kind === 'video';
   }
 
+  /**
+   * A shader layer's source ({ type: 'shader', glsl, blend, scale }), or null for any other
+   * layer. A shader layer is code the phone runs for every pixel: it covers the whole screen,
+   * takes no placement, can move by itself, and gets no automatic parallax (it reads the tilt
+   * itself). The picture registered for it is only a still, for the layer list.
+   */
+  function shaderOf(layer) {
+    const entry = images.get(layer.imageId);
+    return entry && entry.source && entry.source.type === 'shader' ? entry.source : null;
+  }
+
+  function animatedShader(layer) {
+    const shader = shaderOf(layer);
+    return !!shader && window.WallShader.animated(shader.glsl);
+  }
+
+  /** One frame of a shader layer at the given size; the caller draws it straight away. */
+  function shaderFrame(shader, W, H, time, tiltX, tiltY) {
+    const scale = clamp(Number(shader.scale) || 1, 0.25, 1);
+    const w = Math.max(2, Math.round(W * scale));
+    const h = Math.max(2, Math.round(H * scale));
+    return window.WallShader.frame(shader.glsl, w, h, time, tiltX, tiltY, shader.blend === 'add');
+  }
+
+  /** Zoom and slide the app gives a layer when the phone tilts: none for a shader layer. */
+  function parallaxFor(layer) {
+    return shaderOf(layer) ? { zoom: 1, shift: 0 } : parallaxOf(layer.depth);
+  }
+
   /** Draws a layer where it sits on a W x H wallpaper canvas (no parallax). */
   function bakeInto(ctx, layer, W, H) {
     const entry = images.get(layer.imageId);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, W, H);
     if (!entry) return;
+    if (entry.source && entry.source.type === 'shader') {
+      // Drawn live, as it looks now. If the graphics context is gone the layer stays empty.
+      try {
+        ctx.drawImage(shaderFrame(entry.source, W, H, performance.now() / 1000, tilt.x, tilt.y), 0, 0, W, H);
+      } catch (error) {
+        // Nothing to draw.
+      }
+      return;
+    }
     // A video that has not decoded a frame yet has nothing to draw.
     if (entry.kind === 'video' && entry.el.readyState < 2) return;
     const s = coverScale(entry, W, H) * layer.scale;
@@ -145,8 +183,10 @@
     layer.crop = c;
   }
 
-  /** How a layer is combined with what is behind it. Only video layers can be non-normal. */
+  /** How a layer is combined with what is behind it. Only video and shader layers can be non-normal. */
   function compositeOf(layer) {
+    const shader = shaderOf(layer);
+    if (shader) return shader.blend === 'add' ? 'lighter' : 'source-over';
     if (!isVideo(layer)) return 'source-over';
     return layer.blend === 'add' ? 'lighter' : layer.blend === 'screen' ? 'screen' : 'source-over';
   }
@@ -190,7 +230,7 @@
     ctx.fillStyle = '#0a0a0f';
     ctx.fillRect(0, 0, W, H);
     for (const layer of drawOrder()) {
-      const p = parallaxOf(layer.depth);
+      const p = parallaxFor(layer);
       ctx.save();
       ctx.globalCompositeOperation = compositeOf(layer);
       ctx.translate(W / 2 + tilt.x * p.shift * W, H / 2 + tilt.y * p.shift * H);
@@ -263,7 +303,7 @@
     const w = entry.w * s;
     const h = entry.h * s;
     const angle = layer.rotation * Math.PI / 180;
-    const zoom = parallaxOf(layer.depth).zoom;
+    const zoom = parallaxFor(layer).zoom;
     const mirrored = layer.flip && entry.kind === 'image';
     const c = cropOf(layer);
     // The visible rectangle in the picture's own axes; mirroring swaps which side is which.
@@ -317,7 +357,7 @@
   function pictureUV(layer, nx, ny) {
     const entry = images.get(layer.imageId);
     const { W, H } = previewSize();
-    const zoom = parallaxOf(layer.depth).zoom;
+    const zoom = parallaxFor(layer).zoom;
     const x = ((nx - 0.5) * W) / zoom - layer.x * W;
     const y = ((ny - 0.5) * H) / zoom - layer.y * H;
     const angle = -layer.rotation * Math.PI / 180;
@@ -360,7 +400,7 @@
     const order = drawOrder().reverse();
     for (const layer of order) {
       if (layer.locked) continue;
-      const zoom = parallaxOf(layer.depth).zoom;
+      const zoom = parallaxFor(layer).zoom;
       const bx = Math.round(((nx - 0.5) / zoom + 0.5) * W);
       const by = Math.round(((ny - 0.5) / zoom + 0.5) * H);
       if (bx < 0 || by < 0 || bx >= W || by >= H) continue;
@@ -397,7 +437,7 @@
       startY: layer.y,
       clientX: event.clientX,
       clientY: event.clientY,
-      zoom: parallaxOf(layer.depth).zoom,
+      zoom: parallaxFor(layer).zoom,
       rect: p.rect,
     };
   });
@@ -466,7 +506,7 @@
     frameRequest = 0;
     let moving = false;
     for (const layer of state.layers) {
-      if (layer.visible && isVideo(layer)) {
+      if (layer.visible && (isVideo(layer) || animatedShader(layer))) {
         rebake(layer);
         moving = true;
       }
@@ -1439,6 +1479,17 @@
     for (let i = 0; i < order.length; i++) {
       const layer = order[i];
       const entry = images.get(layer.imageId);
+      const shader = shaderOf(layer);
+      if (shader) {
+        // The phone compiles and runs the code itself; nothing is drawn into a picture here.
+        const name = `layer${i}.frag`;
+        files.push({ name, data: new TextEncoder().encode(shader.glsl) });
+        const spec = { type: 'shader', src: name, depth: round2(layer.depth) };
+        if (shader.blend === 'add') spec.blend = 'add';
+        if (shader.scale < 1) spec.scale = shader.scale;
+        layers.push(spec);
+        continue;
+      }
       if (entry && entry.kind === 'video') {
         // A video cannot be redrawn into a new file here, so the original goes in untouched and
         // the app places it using these numbers (same meaning as the editor's own).
@@ -1481,7 +1532,7 @@
     tctx.fillStyle = '#0a0a0f';
     tctx.fillRect(0, 0, thumb.width, thumb.height);
     for (const layer of order) {
-      const zoom = parallaxOf(layer.depth).zoom;
+      const zoom = parallaxFor(layer).zoom;
       tctx.save();
       tctx.globalCompositeOperation = compositeOf(layer);
       tctx.translate(thumb.width / 2, thumb.height / 2);
@@ -1566,7 +1617,7 @@
       const wctx = work.getContext('2d');
       for (const layer of drawOrder()) {
         bakeInto(wctx, layer, W, H);
-        const zoom = parallaxOf(layer.depth).zoom;
+        const zoom = parallaxFor(layer).zoom;
         ctx.save();
         ctx.globalCompositeOperation = compositeOf(layer);
         ctx.translate(W / 2, H / 2);
@@ -1679,12 +1730,21 @@
       const ext = String(spec.src || '').split('.').pop().toLowerCase();
       const base = { depth, x: 0, y: 0, scale: 1, rotation: 0, opacity: 1, flip: false, blend: 'normal', visible: true };
       if (spec.type === 'shader') {
-        // The editor's own moving effects are recognised by their source; anything else is a
-        // custom shader, which the editor cannot draw.
+        // The editor's own moving effects are recognised by their source. Any other shader
+        // becomes a shader layer, unless it needs textures or does not compile here.
         const source = data ? new TextDecoder().decode(data).trim() : '';
         const known = Object.entries(window.WallEffects).find(([, e]) => e.source && e.source.trim() === source);
-        if (known) effect = known[0];
-        else notes.push(t`略過 shader 圖層「${spec.src}」(編輯器無法顯示自訂 shader)`);
+        if (known) {
+          effect = known[0];
+          continue;
+        }
+        try {
+          if (Array.isArray(spec.channels) && spec.channels.some(Boolean)) throw new Error('channels');
+          const shader = shaderSource({ glsl: source, blend: spec.blend === 'add' ? 'add' : 'normal', render_scale: spec.scale });
+          layers.push({ ...base, imageId: await registerDrawing(shaderStill(shader), shader), name: t`動態 ${layers.length + 1}` });
+        } catch (error) {
+          notes.push(t`略過 shader 圖層「${spec.src}」(編輯器無法顯示這個 shader)`);
+        }
         continue;
       }
       if (!data) {
@@ -2156,6 +2216,7 @@
       name: layer.name,
       depth: layer.depth,
       artwork: made,
+      ...(made === 'shader' ? { blend: entry.source.blend, render_scale: entry.source.scale, animated: window.WallShader.animated(entry.source.glsl) } : {}),
       x: round(layer.x, 3),
       y: round(layer.y, 3),
       scale: round(layer.scale, 3),
@@ -2169,6 +2230,83 @@
     };
   }
 
+  /** What to draw for a layer in renderScene: its baked picture, or a shader frame at `time`. */
+  function sceneCanvas(layer, W, H, time, tiltX, tiltY) {
+    const shader = shaderOf(layer);
+    if (!shader) return bakedCanvas(layer);
+    try {
+      return shaderFrame(shader, W, H, time, tiltX, tiltY);
+    } catch (error) {
+      return bakedCanvas(layer);
+    }
+  }
+
+  // ---------------------------------------------------------------- shader layers
+
+  /** Checks what a tool call asked for and returns the shader's source record. Throws what the model should read. */
+  function shaderSource(p, previous) {
+    const glsl = String(p.glsl === undefined ? (previous ? previous.glsl : '') : p.glsl).replace(/\r\n/g, '\n');
+    if (!glsl.trim()) throw new Error('"glsl" is missing: pass the fragment shader source.');
+    if (glsl.length > 60000) throw new Error('The shader is too long. Keep it under 60 KB.');
+    const blend = p.blend === undefined || p.blend === null ? (previous ? previous.blend : 'normal') : p.blend;
+    if (blend !== 'normal' && blend !== 'add') throw new Error('"blend" must be "normal" or "add".');
+    const asked = p.render_scale === undefined || p.render_scale === null ? (previous ? previous.scale : 1) : Number(p.render_scale);
+    const scale = round2(clamp(Number.isFinite(asked) ? asked : 1, 0.25, 1));
+    if (/\biChannel[0-3]\b/.test(window.WallShader.codeOf(glsl))) {
+      throw new Error('Shader layers made here have no textures: do not use iChannel0..3. Compute everything from fragCoord, iResolution, iTime and uTilt.');
+    }
+    const log = window.WallShader.check(glsl);
+    if (log) throw new Error(`The shader did not compile. Fix it and call the tool again. Compiler output (line numbers are those of your source):\n${log}`);
+    return { type: 'shader', glsl, blend, scale };
+  }
+
+  /** A still of the shader three seconds in, for the layer list and as the layer's picture. */
+  function shaderStill(shader) {
+    const { W, H } = previewSize();
+    const canvas = document.createElement('canvas');
+    canvas.width = W;
+    canvas.height = H;
+    canvas.getContext('2d').drawImage(shaderFrame(shader, W, H, 3, 0, 0), 0, 0, W, H);
+    return canvas;
+  }
+
+  /** What the assistant is told about a shader layer it just wrote. */
+  function shaderReport(shader, still) {
+    const report = { blend: shader.blend, render_scale: shader.scale, animated: window.WallShader.animated(shader.glsl) };
+    const notes = [];
+    if (shader.blend === 'add') {
+      // Alpha means nothing for an added layer: report how much of the screen it lights up.
+      // Counted on every pixel of the still: small things like stars vanish when shrunk.
+      const data = still.getContext('2d').getImageData(0, 0, still.width, still.height).data;
+      let lit = 0;
+      let bright = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        const peak = Math.max(data[i], data[i + 1], data[i + 2]);
+        if (peak > 10) lit++;
+        if (peak > 200) bright++;
+      }
+      const total = still.width * still.height;
+      report.lit = round(lit / total, 4);
+      if (!lit) notes.push('At 3 seconds this layer adds nothing visible. Check it with view_canvas at a few times.');
+      if (bright / total > 0.5) notes.push('More than half the screen is close to full brightness: an added layer this strong washes the picture out. Lower its intensity.');
+    } else {
+      const data = still.getContext('2d').getImageData(0, 0, still.width, still.height).data;
+      let painted = 0;
+      let opaque = 0;
+      for (let i = 3; i < data.length; i += 4) {
+        if (data[i] > 8) painted++;
+        if (data[i] > 250) opaque++;
+      }
+      const total = still.width * still.height;
+      report.coverage = { painted: round(painted / total, 4), fully_opaque: opaque === total };
+      if (report.coverage.fully_opaque) notes.push('This layer is opaque everywhere, so it hides every layer behind it. Write alpha 0 where it should show nothing (and premultiply the colour), or use blend "add".');
+      if (!report.coverage.painted) notes.push('At 3 seconds this layer paints nothing. Check it with view_canvas at a few times.');
+    }
+    if (!report.animated) notes.push('This shader never reads iTime, so it does not move.');
+    if (notes.length) report.notes = notes;
+    return report;
+  }
+
   /** The scene as the phone shows it, at preview size, for the given tilt (each axis -1..1). */
   function renderScene(options) {
     const { W, H } = previewSize();
@@ -2177,6 +2315,8 @@
     canvas.height = H;
     const ctx = canvas.getContext('2d');
     const only = options.onlyLayerId == null ? null : layerById(options.onlyLayerId);
+    // Shader layers are shown as they look `time` seconds in, so two views can be compared.
+    const time = Number.isFinite(Number(options.time)) ? Math.max(0, Number(options.time)) : 3;
     if (only) {
       // A single layer on a checkerboard, so its transparent parts can be told from dark paint.
       for (let y = 0; y < H; y += 25) {
@@ -2185,19 +2325,20 @@
           ctx.fillRect(x, y, 25, 25);
         }
       }
-      ctx.drawImage(bakedCanvas(only), 0, 0, W, H);
+      ctx.globalCompositeOperation = compositeOf(only);
+      ctx.drawImage(sceneCanvas(only, W, H, time, 0, 0), 0, 0, W, H);
     } else {
       ctx.fillStyle = '#000';
       ctx.fillRect(0, 0, W, H);
       const tx = clamp(Number(options.tiltX) || 0, -1, 1);
       const ty = clamp(Number(options.tiltY) || 0, -1, 1);
       for (const layer of drawOrder()) {
-        const p = parallaxOf(layer.depth);
+        const p = parallaxFor(layer);
         ctx.save();
         ctx.globalCompositeOperation = compositeOf(layer);
         ctx.translate(W / 2 + tx * p.shift * W, H / 2 + ty * p.shift * H);
         ctx.scale(p.zoom, p.zoom);
-        ctx.drawImage(bakedCanvas(layer), -W / 2, -H / 2, W, H);
+        ctx.drawImage(sceneCanvas(layer, W, H, time, tx, ty), -W / 2, -H / 2, W, H);
         ctx.restore();
       }
     }
@@ -2380,6 +2521,14 @@
       return { layer_id: layer.id, depth: layer.depth, viewBox: svg.viewBox, coverage: coverageOf(canvas), notes: svg.notes };
     },
 
+    /** Adds a layer drawn by a fragment shader: full screen, optionally moving. */
+    async addShaderLayer(p) {
+      const shader = shaderSource(p);
+      const still = shaderStill(shader);
+      const layer = drawnLayer(await registerDrawing(still, shader), p.name, p.depth);
+      return { layer_id: layer.id, depth: layer.depth, ...shaderReport(shader, still) };
+    },
+
     async addPixelLayer(p) {
       // The palette arrives as [{ char, color }]; a plain { char: color } object is accepted too.
       const palette = Array.isArray(p.palette)
@@ -2392,8 +2541,23 @@
     },
 
     /** Replaces a layer's artwork, keeping its depth and placement. */
-    async replaceArt(id, svgText) {
+    async replaceArt(id, art) {
       const layer = layerById(id);
+      // `art` is the tool's input ({ svg } or { glsl, blend, render_scale }), or SVG text.
+      const p = typeof art === 'string' ? { svg: art } : art || {};
+      const current = shaderOf(layer);
+      if (current || p.glsl !== undefined) {
+        if (!current) throw new Error('This layer is not a shader layer: pass "svg" to redraw it, or add a shader layer with add_shader_layer.');
+        if (p.svg !== undefined) throw new Error('This is a shader layer: pass "glsl", not "svg".');
+        const shader = shaderSource(p, current);
+        const still = shaderStill(shader);
+        layer.imageId = await registerDrawing(still, shader);
+        refresh();
+        commit();
+        return { layer_id: layer.id, ...shaderReport(shader, still) };
+      }
+      if (p.svg === undefined) throw new Error('"svg" is missing: pass the complete new SVG document.');
+      const svgText = p.svg;
       const svg = prepareSvg(svgText);
       const canvas = await rasteriseSvg(svg.drawable);
       layer.imageId = await registerDrawing(canvas, { type: 'svg', svg: svg.source });
@@ -2410,6 +2574,12 @@
 
     updateLayer(id, p) {
       const layer = layerById(id);
+      if (shaderOf(layer)) {
+        const placement = ['x', 'y', 'scale', 'rotation', 'opacity', 'crop_left', 'crop_right', 'crop_top', 'crop_bottom'].filter((key) => p[key] !== undefined);
+        if (placement.length) {
+          throw new Error(`A shader layer covers the whole screen and has no ${placement.join(', ')}. Change where and how strongly it draws in its code, with update_layer_art.`);
+        }
+      }
       if (p.name !== undefined) layer.name = String(p.name).slice(0, 60);
       if (p.depth !== undefined) layer.depth = round2(clamp(Number(p.depth), 0, 1));
       if (p.x !== undefined) layer.x = clamp(Number(p.x), -1, 1);

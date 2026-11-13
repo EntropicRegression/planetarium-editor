@@ -121,7 +121,6 @@ window.WallI18nEn = {
   // ---- files, export, errors
   '開啟專案檔 (.wallproj.json) 或桌布包 (.zip)': 'Open a project file (.wallproj.json) or a wallpaper pack (.zip)',
   '壓縮檔裡找不到 manifest.json,這不是桌布包': 'there is no manifest.json in the archive; this is not a wallpaper pack',
-  '略過 shader 圖層「{}」(編輯器無法顯示自訂 shader)': 'Skipped the shader layer "{}" (the editor cannot show custom shaders)',
   '找不到圖層檔案「{}」': 'The layer file "{}" is missing',
   '影片 {}': 'Video {}',
   '圖層 {}': 'Layer {}',
@@ -203,6 +202,9 @@ window.WallI18nEn = {
   '套用為桌布': 'Set as wallpaper',
   '已加入桌布庫並設為桌布。回到上一頁就看得到。': 'Added to the library and set as the wallpaper. Go back to see it.',
   '無法開啟這張桌布:{}': 'Could not open this wallpaper: {}',
+  '加入動態圖層': 'Adding a moving layer',
+  '動態 {}': 'Motion {}',
+  '略過 shader 圖層「{}」(編輯器無法顯示這個 shader)': 'Skipped the shader layer "{}" (the editor cannot show this shader)',
   '展開': 'Expand',
   '打開提示詞編輯器:用大一點的視窗寫提示詞': 'Open the prompt editor: write the prompt in a larger window',
   '提示詞編輯器': 'Prompt editor',

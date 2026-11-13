@@ -127,6 +127,23 @@ add_svg_layer takes one complete SVG document and turns it into a layer.
 
 For pixel art, either write SVG on a coarse grid (shape-rendering="crispEdges" on the root, every coordinate a multiple of the cell size, e.g. 6 px), or use add_pixel_layer for sprites and small pieces: rows of characters, a palette mapping characters to colours, and a cell size. Characters without a palette entry are transparent.
 
+# Moving layers
+
+Everything above is a still picture. add_shader_layer adds a layer that moves: a GLSL fragment shader the phone runs for every pixel, every frame. Use it for motion that suits the scene and can be computed: stars that twinkle, drifting fog or clouds, light shimmering on water, rain, snow, embers, fireflies, a neon sign or a window that flickers, light rays, an aurora. It cannot move a drawn object (a tail, a flag, a person); do not try to redraw artwork in a shader. One shader layer is usually right, two at most; a still scene with one quiet moving thing looks better than a busy one.
+
+How to write one:
+- Shadertoy style. Define only  void mainImage(out vec4 fragColor, in vec2 fragCoord)  plus helper functions. No #version line, no main(), no uniform declarations: they are added for you.
+- This is GLSL ES 3.00 on a phone GPU. Write float literals with a decimal point (1.0, not 1). No implicit int/float conversion. Loops need constant bounds. There are no textures: iChannel0..3 are not available, so make noise with hash functions.
+- Uniforms: iResolution.xy (pixels), iTime (seconds), uTilt (vec2, each −1..1, the phone's tilt). fragCoord is in pixels with the origin at the BOTTOM-left, the opposite of SVG. For a point at SVG (x, y) on a W×H canvas use uv = vec2(x / W, 1.0 − y / H) with uv = fragCoord / iResolution.xy. Keep circles round with  vec2 p = (fragCoord − 0.5 * iResolution.xy) / iResolution.y.
+- blend "add": the colour you write is added to the layers behind (alpha is ignored). Black adds nothing, so this is the easy and usual choice for anything that glows: stars, dust, light, fire, shimmer, rain streaks. Keep it subtle; values above about 0.6 over large areas wash the picture out.
+- blend "normal": you write premultiplied colour over the layers behind. Write vec4(0.0) where nothing shows and vec4(colour * a, a) elsewhere. Use it for things that darken or cover: fog, clouds, smoke, falling snow with soft edges.
+- A shader layer always covers the whole screen, so confine the effect yourself: multiply by a mask built from uv (smoothstep bands, distance to a point) so that stars stay in the sky above the horizon, shimmer stays on the water, a flicker stays inside one window. Take those positions from the layers you drew.
+- Depth only decides what it is drawn in front of. Shader layers get no automatic parallax; if the effect should slide with the others, offset its coordinates yourself by uTilt times a small factor (about 0.02 for far things, 0.06 for near ones).
+- Move slowly. Wallpaper motion should be calm: speeds of 0.02 to 0.3 screen heights a second, twinkles over one to four seconds. Do not flash.
+- Keep it cheap, it runs all the time: a few dozen operations per pixel, loops of at most about 24 steps, at most 4 octaves of noise. For soft effects (fog, glow, aurora) set render_scale to 0.5: it is drawn at half resolution and costs a quarter.
+
+If the shader does not compile, the tool returns the compiler's messages with your own line numbers; fix those lines and call it again. Then look at it: view_canvas takes a time in seconds, so view it at two different times (for example 1 and 6) to see that it moves the way you meant and stays where it should. Fix it with update_layer_art (pass glsl). update_layer cannot move or fade a shader layer; change its code.
+
 # Pictures
 
 Pictures available to you are numbered ref:1, ref:2 and so on: the ones the person attached appear in the conversation with their pixel sizes, and get_scene lists all of them. Study the person's pictures for composition, palette and mood. Any picture can go on a layer in two ways: add_image_layer places it whole (update_layer can then crop it to the part you want), and inside SVG <image href="ref:1" x=".." y=".." width=".." height=".." preserveAspectRatio="xMidYMid slice"/> places it where you want, where a clipPath or mask can cut a region out of it. Cut-outs made with clip paths are rough, so for the person's own photographs redraw the scene unless the photograph itself is what they asked for.`;
@@ -155,7 +172,7 @@ Write prompts the way you would brief an illustrator: subject, viewpoint, light,
 4. When the stack is in place, call view_canvas and look critically: black gaps, a subject that does not read, clutter, hard edges where layers meet. Then look again with tilt_x at −1 and at 1 to see that tilting reveals no hole or layer edge. Fix what you find with update_layer_art (redraw one layer) or update_layer (depth, opacity, visibility, placement). Two or three rounds of looking and fixing are enough; stop when it is good.
 5. Finish with a short summary in the person's language: the layers and their depths, and anything they may want to adjust by hand. Do not paste SVG into the chat.
 
-set_scene can also add a moving overlay (dust, snow, rain) that plays on the phone but cannot be previewed in the editor; use one only when it suits the scene.
+Motion is optional: add a shader layer when the scene has something that would naturally move, or when the person asks for it. set_scene can instead add a ready-made overlay (dust, snow, rain) that plays on the phone but cannot be previewed here; do not use one together with a shader layer that does the same job.
 
 Write to the person in the language they write in.`;
 
@@ -198,6 +215,21 @@ Write to the person in the language they write in.`;
           svg: { type: 'string', description: 'A complete SVG document.' },
         },
         required: ['name', 'depth', 'svg'],
+      },
+    },
+    {
+      name: 'add_shader_layer',
+      description: 'Adds a moving layer drawn by a GLSL ES 3.00 fragment shader (Shadertoy style: define mainImage only). It covers the whole screen and runs on the phone every frame. The shader is compiled first: if it fails, the compiler output comes back and nothing is added. The result reports how much of the screen it paints or lights at 3 seconds and whether it moves.',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'Short name for the layer list.' },
+          depth: { type: 'number', description: '1 = farthest, 0 = nearest. Decides only which layers it is drawn in front of.' },
+          glsl: { type: 'string', description: 'The fragment shader source: helper functions and  void mainImage(out vec4 fragColor, in vec2 fragCoord). No #version, no main(), no uniform declarations.' },
+          blend: { type: 'string', enum: ['add', 'normal'], description: '"add": the colour is added to what is behind (for glows and light). "normal": premultiplied colour laid over what is behind (for fog, clouds, anything that covers). Default "normal".' },
+          render_scale: { type: 'number', description: '0.25 to 1. Fraction of the screen resolution it is drawn at; use 0.5 for soft effects. Default 1.' },
+        },
+        required: ['name', 'depth', 'glsl'],
       },
     },
     {
@@ -247,14 +279,17 @@ Write to the person in the language they write in.`;
     },
     {
       name: 'update_layer_art',
-      description: 'Redraws an existing layer from new SVG, keeping its id, depth and placement. Use it to fix or refine a layer instead of deleting and adding.',
+      description: 'Redraws an existing layer, keeping its id, depth and placement. Use it to fix or refine a layer instead of deleting and adding. Pass svg for a drawn layer, or glsl for a shader layer (get_scene says which each layer is).',
       parameters: {
         type: 'object',
         properties: {
           layer_id: LAYER_ID,
-          svg: { type: 'string', description: 'The complete new SVG document for the layer.' },
+          svg: { type: 'string', description: 'For a drawn layer: the complete new SVG document.' },
+          glsl: { type: 'string', description: 'For a shader layer: the complete new fragment shader source.' },
+          blend: { type: 'string', enum: ['add', 'normal'], description: 'For a shader layer: change how it is combined. Omit to keep it.' },
+          render_scale: { type: 'number', description: 'For a shader layer: 0.25 to 1. Omit to keep it.' },
         },
-        required: ['layer_id', 'svg'],
+        required: ['layer_id'],
       },
     },
     {
@@ -299,6 +334,7 @@ Write to the person in the language they write in.`;
           tilt_x: { type: 'number', description: '−1 to 1.' },
           tilt_y: { type: 'number', description: '−1 to 1.' },
           only_layer_id: { type: 'number', description: 'Show just this layer.' },
+          time: { type: 'number', description: 'Seconds: the moment at which shader layers are shown. Default 3. View two different times to see motion.' },
         },
       },
     },
