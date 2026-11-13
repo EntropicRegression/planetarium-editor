@@ -13,7 +13,7 @@ const path = require('path');
 const vm = require('vm');
 
 const root = path.join(__dirname, '..');
-const SCRIPTS = ['js/app.js', 'js/assistant.js', 'js/ai/core.js', 'js/ai/claude.js', 'js/ai/gemini.js', 'js/ai/openai.js', 'js/effects.js'];
+const SCRIPTS = ['js/app.js', 'js/assistant.js', 'js/ai/core.js', 'js/ai/claude.js', 'js/ai/gemini.js', 'js/ai/openai.js', 'js/effects.js', 'js/phone.js'];
 const CJK = /[㐀-鿿]/;
 
 /**

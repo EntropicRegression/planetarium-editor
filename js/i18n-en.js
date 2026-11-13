@@ -198,6 +198,18 @@ window.WallI18nEn = {
   '完成': 'Done',
 
   // ---- assistant panel
+  '面板': 'Panels',
+  '調整': 'Adjust',
+  '套用為桌布': 'Set as wallpaper',
+  '已加入桌布庫並設為桌布。回到上一頁就看得到。': 'Added to the library and set as the wallpaper. Go back to see it.',
+  '無法開啟這張桌布:{}': 'Could not open this wallpaper: {}',
+  '展開': 'Expand',
+  '打開提示詞編輯器:用大一點的視窗寫提示詞': 'Open the prompt editor: write the prompt in a larger window',
+  '提示詞編輯器': 'Prompt editor',
+  'Ctrl+Enter 送出,Esc 收合;收合後文字和參考圖都會留著。': 'Ctrl+Enter sends, Esc collapses; the text and the reference pictures are kept when collapsed.',
+  '描述想要的畫面…': 'Describe the picture you want…',
+  '收合': 'Collapse',
+  '{} 字': '{} characters',
   '模板': 'Templates',
   '插入提示詞模板,或把目前輸入的文字存成自己的模板': 'Insert a prompt template, or save the text you have typed as your own template',
   '我的模板': 'My templates',
@@ -210,8 +222,8 @@ window.WallI18nEn = {
   '刪除模板「{}」': 'Delete the template "{}"',
   '要刪除模板「{}」嗎?': 'Delete the template "{}"?',
   '從零生成整張桌布': 'A whole wallpaper from scratch',
-  '請畫一張〔主題,例如:雨後的老街〕的空間桌布。\n- 畫風:〔扁平插畫/像素風/低多邊形〕,色調以〔主色〕為主,帶一點〔點綴色〕。\n- 時間與氣氛:〔黃昏、安靜〕。\n- 一定要有的東西:〔地標或物件〕。\n- 請分成 5–7 個由遠到近的圖層,主體放在畫面中段偏下,上方三分之一保持簡單(會放時鐘)。\n- 不要出現文字和商標。\n畫完請檢視整體與左右傾斜的畫面,有破綻就修正。':
-    'Draw a spatial wallpaper of 〔subject, e.g. an old street after rain〕.\n- Style: 〔flat illustration / pixel art / low-poly〕, mostly 〔main colour〕 with a touch of 〔accent colour〕.\n- Time and mood: 〔dusk, quiet〕.\n- Must include: 〔landmarks or objects〕.\n- Split it into 5–7 layers from far to near, put the subject a little below the middle, and keep the top third simple (the clock goes there).\n- No text and no logos.\nWhen done, view the whole picture and the left and right tilts, and fix anything that breaks.',
+  '請畫一張〔主題,例如:雨後的老街〕的空間桌布。\n- 畫風:〔扁平插畫/像素風/低多邊形〕,色調以〔主色〕為主,帶一點〔點綴色〕。\n- 時間與氣氛:〔黃昏、安靜〕。\n- 由遠到近:遠景是〔山、天際線…〕,中景是〔主體,最醒目的地標〕,近景是〔前景物件〕。\n- 其他一定要有的東西:〔地標或物件〕。\n- 請分成 5–7 個由遠到近的圖層,主體放在畫面中段偏下,上方三分之一保持簡單(會放時鐘)。\n- 不要出現文字和商標。\n畫完請檢視整體與左右傾斜的畫面,有破綻就修正。':
+    'Draw a spatial wallpaper of 〔subject, e.g. an old street after rain〕.\n- Style: 〔flat illustration / pixel art / low-poly〕, mostly 〔main colour〕 with a touch of 〔accent colour〕.\n- Time and mood: 〔dusk, quiet〕.\n- From far to near: far away 〔mountains, a skyline…〕, in the middle 〔the subject, the most striking landmark〕, up close 〔foreground objects〕.\n- Also must include: 〔landmarks or objects〕.\n- Split it into 5–7 layers from far to near, put the subject a little below the middle, and keep the top third simple (the clock goes there).\n- No text and no logos.\nWhen done, view the whole picture and the left and right tilts, and fix anything that breaks.',
   '依參考圖重畫單一圖層': 'Redraw one layer from a reference picture',
   '請只重畫圖層「〔圖層名稱〕」這一層(取代它的圖,不要新增、刪除或更動其他圖層,也不要改場景設定)。\n附圖是參考照片,請抓造型與比例,不要抓雜訊:〔用兩三句描述它由哪些部分組成、朝哪個方向〕。\n- 位置與大小:維持在原本的位置,範圍以外全部透明。\n- 風格:和現有場景一致(色調、明暗方向、有無描邊都照現有圖層)。\n畫完請檢視畫面,和附圖比對造型,不像就再改一次。':
     'Redraw only the layer "〔layer name〕" (replace its artwork; do not add, delete or change any other layer, and leave the scene settings alone).\nThe attached picture is a reference photo; take its shape and proportions, not its noise: 〔two or three sentences on what parts it is made of and which way it points〕.\n- Place and size: keep it where it is now, with everything outside it transparent.\n- Style: match the existing scene (colours, light direction, outlines or none, as in the other layers).\nWhen done, view the canvas, compare the shape with the picture, and redraw once more if it does not match.',

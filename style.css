@@ -367,7 +367,7 @@ select.small { padding: 4px 8px; font-size: 13px; }
 .chat-attachment img { width: 48px; height: 48px; object-fit: cover; border-radius: 6px; }
 .assistant-input {
   width: 100%; resize: none;
-  font: inherit; color: var(--text);
+  font: inherit; font-size: 14px; line-height: 1.5; color: var(--text);
   background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px;
 }
 .assistant-input:disabled { opacity: 0.5; }
@@ -403,6 +403,10 @@ select.small { padding: 4px 8px; font-size: 13px; }
   border-radius: 14px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
 }
+.prompt-editor { width: min(960px, calc(100vw - 32px)); overflow: visible; }
+.prompt-editor[open] { display: flex; flex-direction: column; gap: 10px; height: min(780px, calc(100vh - 48px)); }
+.prompt-editor .hint { margin: 0; }
+.prompt-text { flex: 1; min-height: 0; font-size: 16px; line-height: 1.6; padding: 14px 16px; }
 .dialog::backdrop { background: rgba(8, 8, 12, 0.6); }
 .dialog-title { font-size: 17px; color: var(--text); letter-spacing: 0; margin-bottom: 4px; }
 .dialog-section { padding: 14px 0; border-bottom: 1px solid var(--line); }
@@ -424,3 +428,31 @@ select.small { padding: 4px 8px; font-size: 13px; }
   .assistant-panel { min-height: 520px; }
   .phone-view { border-left: none; }
 }
+
+/* ---- inside the phone app (js/phone.js): one column, the preview on top, one panel at a time ---- */
+.app-mode body { overflow: hidden; }
+.app-mode .toolbar { flex-wrap: nowrap; gap: 8px; padding: 8px 10px; }
+.app-mode .toolbar > :not(.app-keep) { display: none; }
+.app-mode .toolbar .field.inline { flex: 1; min-width: 0; font-size: 0; gap: 0; }
+.app-mode .toolbar .field.inline input { width: 100%; min-width: 0; font-size: 15px; }
+.app-mode .toolbar .spacer, .app-mode #saveState { display: none; }
+.app-mode button, .app-mode select { min-height: 38px; }
+.app-mode button.small { min-height: 34px; }
+.app-mode .workspace, .app-mode .workspace.assistant-open { display: flex; flex-direction: column; }
+.app-mode .space-view { display: none; }
+.app-mode .phone-view { order: 1; flex: 0 0 34vh; border-left: none; padding: 6px 10px 2px; }
+.app-mode .phone-view .view-head { margin-bottom: 4px; }
+.app-mode .phone-view .view-head h2, .app-mode #phoneHint { display: none; }
+.app-mode .phone canvas { touch-action: none; }
+.app-mode .app-tabs { order: 2; display: flex; gap: 6px; padding: 6px 10px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--panel); }
+.app-mode .app-tabs button { flex: 1; }
+.app-mode .workspace .panel { order: 3; display: none; flex: 1; min-height: 0; border: none; }
+.app-mode .workspace[data-tab="layers"] .layers-panel,
+.app-mode .workspace[data-tab="props"] .props-panel { display: block; }
+.app-mode .workspace[data-tab="assistant"] .assistant-panel { display: flex; min-height: 0; }
+.app-mode .assistant-panel .panel-head h2, .app-mode #assistantClose { display: none; }
+.app-mode .assistant-panel .panel-head { justify-content: flex-end; margin: 0; }
+.app-mode .assistant-input { font-size: 16px; }
+.app-mode .layer-item { min-height: 52px; }
+.app-mode .dialog { padding: 16px; }
+.app-mode .dialog-grid { grid-template-columns: 1fr; }

@@ -9,7 +9,7 @@
 <body>
   <header class="toolbar">
     <span class="brand">空間桌布編輯器</span>
-    <label class="field inline">名稱
+    <label class="field inline app-keep">名稱
       <input id="packName" type="text" spellcheck="false">
     </label>
     <label class="field inline">畫布
@@ -19,16 +19,16 @@
       <input id="canvasW" type="number" min="240" max="4320" step="1" aria-label="畫布寬度"> ×
       <input id="canvasH" type="number" min="240" max="7680" step="1" aria-label="畫布高度">
     </span>
-    <span id="saveState" class="save-state" aria-live="polite"></span>
-    <span class="spacer"></span>
+    <span id="saveState" class="save-state app-keep" aria-live="polite"></span>
+    <span class="spacer app-keep"></span>
     <button id="assistantToggle" title="用文字和參考圖讓 AI 畫出圖層">AI 助手</button>
-    <button id="undoBtn" title="復原 (Ctrl+Z)">復原</button>
+    <button id="undoBtn" class="app-keep" title="復原 (Ctrl+Z)">復原</button>
     <button id="redoBtn" title="重做 (Ctrl+Y)">重做</button>
     <button id="newProjectBtn" title="清空畫布,開始新的桌布">新專案</button>
     <button id="openProjectBtn" title="開啟專案檔 (.wallproj.json) 或桌布包 (.zip)">開啟專案</button>
     <button id="saveProjectBtn">儲存專案</button>
     <button id="exportImageBtn" title="把靜止時的畫面存成一張 PNG">匯出預覽圖</button>
-    <button id="exportBtn" class="primary">匯出桌布包 .zip</button>
+    <button id="exportBtn" class="primary app-keep">匯出桌布包 .zip</button>
     <button id="langBtn" title="Language" aria-label="Language"></button>
     <button id="helpBtn" title="操作說明與快捷鍵 (?)" aria-label="操作說明與快捷鍵">?</button>
   </header>
@@ -88,6 +88,12 @@
       </div>
       <p id="phoneHint" class="hint center"></p>
     </section>
+
+    <nav id="appTabs" class="app-tabs" role="tablist" aria-label="面板" hidden>
+      <button type="button" role="tab" data-tab="assistant">AI 助手</button>
+      <button type="button" role="tab" data-tab="layers">圖層</button>
+      <button type="button" role="tab" data-tab="props">調整</button>
+    </nav>
 
     <aside class="panel props-panel">
       <div id="layerProps" hidden>
@@ -161,12 +167,28 @@
         <button id="assistantAttach" class="small" title="附上參考圖(也可以直接貼上或拖進來)">＋ 參考圖</button>
         <button id="assistantTemplates" class="small" aria-haspopup="menu" aria-expanded="false" title="插入提示詞模板,或把目前輸入的文字存成自己的模板">模板</button>
         <div id="templateMenu" class="template-menu" role="menu" hidden></div>
+        <button id="assistantExpand" class="small" title="打開提示詞編輯器:用大一點的視窗寫提示詞">展開</button>
         <span id="assistantUsage" class="hint"></span>
         <button id="assistantStop" class="small danger" hidden>停止</button>
         <button id="assistantSend" class="small primary">送出</button>
       </div>
     </aside>
   </main>
+
+  <dialog id="promptEditor" class="dialog prompt-editor" aria-labelledby="promptEditorTitle">
+    <h2 id="promptEditorTitle" class="dialog-title">提示詞編輯器</h2>
+    <p class="hint">Ctrl+Enter 送出,Esc 收合;收合後文字和參考圖都會留著。</p>
+    <div id="promptAttachments" class="assistant-attachments" hidden></div>
+    <textarea id="promptText" class="assistant-input prompt-text" aria-label="給 AI 助手的訊息" placeholder="描述想要的畫面…"></textarea>
+    <div class="assistant-bar">
+      <button id="promptAttach" class="small" type="button" title="附上參考圖(也可以直接貼上或拖進來)">＋ 參考圖</button>
+      <button id="promptTemplates" class="small" type="button" aria-haspopup="menu" aria-expanded="false" title="插入提示詞模板,或把目前輸入的文字存成自己的模板">模板</button>
+      <div id="promptTemplateMenu" class="template-menu" role="menu" hidden></div>
+      <span id="promptCount" class="hint"></span>
+      <button id="promptCollapse" class="small" type="button">收合</button>
+      <button id="promptSend" class="small primary" type="button">送出</button>
+    </div>
+  </dialog>
 
   <dialog id="aiSettings" class="dialog" aria-labelledby="aiSettingsTitle">
     <h2 id="aiSettingsTitle" class="dialog-title">AI 設定</h2>
@@ -281,5 +303,6 @@
   <script src="js/ai/gemini.js"></script>
   <script src="js/ai/openai.js"></script>
   <script src="js/assistant.js"></script>
+  <script src="js/phone.js"></script>
 </body>
 </html>

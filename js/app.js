@@ -1508,7 +1508,7 @@
    * "Save as" dialog picks where it goes. Resolves to false when the person cancelled.
    */
   async function download(bytes, filename, type) {
-    if (window.WALL_DESKTOP) {
+    if (window.WALL_DESKTOP || window.WALL_APP) {
       const response = await fetch('/api/save', {
         method: 'POST',
         headers: { 'x-wall-editor': '1', 'x-wall-filename': encodeURIComponent(filename), 'Content-Type': type },
@@ -1539,7 +1539,9 @@
     try {
       const bytes = await buildPackZip();
       if (!(await download(bytes, `${fileBase()}.zip`, 'application/zip'))) return;
-      toast(t`已匯出。把這個 .zip 傳到手機,在 App 裡選「匯入 → Shader / 插件包 → 插件包(.zip)」。`);
+      // In the phone app the pack went straight into the library and is the wallpaper now.
+      if (window.WALL_APP) toast(t`已加入桌布庫並設為桌布。回到上一頁就看得到。`);
+      else toast(t`已匯出。把這個 .zip 傳到手機,在 App 裡選「匯入 → Shader / 插件包 → 插件包(.zip)」。`);
     } catch (error) {
       toast(t`匯出失敗:${error.message}`, true);
     } finally {
@@ -1996,7 +1998,9 @@
   refresh();
   commit();
   dirty = false;
-  restoreAutosave();
+  // Resolves once the last session's work is back (or there was none), so that whatever opens
+  // something else at start-up does not have it replaced a moment later.
+  const restored = restoreAutosave();
 
   // ---------------------------------------------------------------- drawn layers (AI assistant)
   //
@@ -2454,5 +2458,6 @@
     refresh,
     buildPackZip,
     loadPack,
+    restored,
   };
 })();

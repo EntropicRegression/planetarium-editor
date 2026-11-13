@@ -444,14 +444,25 @@
     $('assistantInput').disabled = on;
     $('assistantAttach').disabled = on;
     $('assistantTemplates').disabled = on;
+    $('assistantExpand').disabled = on;
     if (on) setTemplateMenu(false);
     $('assistantReset').disabled = on;
     $('assistantModelChip').disabled = on;
     if (!on) $('assistantInput').focus();
   }
 
+  // The message box in use: the big prompt editor while it is open, otherwise the panel's own.
+  // Both share the attached pictures and the templates.
+  const editorOpen = () => $('promptEditor').open;
+  const inputEl = () => $(editorOpen() ? 'promptText' : 'assistantInput');
+  const menuEl = () => $(editorOpen() ? 'promptTemplateMenu' : 'templateMenu');
+  const menuButton = () => $(editorOpen() ? 'promptTemplates' : 'assistantTemplates');
+
   function renderAttachments() {
-    const row = $('assistantAttachments');
+    for (const id of ['assistantAttachments', 'promptAttachments']) renderAttachmentRow($(id));
+  }
+
+  function renderAttachmentRow(row) {
     row.textContent = '';
     attachments.forEach((item, i) => {
       const chip = document.createElement('button');
@@ -516,7 +527,7 @@
     return [
       {
         title: t`從零生成整張桌布`,
-        text: t`請畫一張〔主題,例如:雨後的老街〕的空間桌布。\n- 畫風:〔扁平插畫/像素風/低多邊形〕,色調以〔主色〕為主,帶一點〔點綴色〕。\n- 時間與氣氛:〔黃昏、安靜〕。\n- 一定要有的東西:〔地標或物件〕。\n- 請分成 5–7 個由遠到近的圖層,主體放在畫面中段偏下,上方三分之一保持簡單(會放時鐘)。\n- 不要出現文字和商標。\n畫完請檢視整體與左右傾斜的畫面,有破綻就修正。`,
+        text: t`請畫一張〔主題,例如:雨後的老街〕的空間桌布。\n- 畫風:〔扁平插畫/像素風/低多邊形〕,色調以〔主色〕為主,帶一點〔點綴色〕。\n- 時間與氣氛:〔黃昏、安靜〕。\n- 由遠到近:遠景是〔山、天際線…〕,中景是〔主體,最醒目的地標〕,近景是〔前景物件〕。\n- 其他一定要有的東西:〔地標或物件〕。\n- 請分成 5–7 個由遠到近的圖層,主體放在畫面中段偏下,上方三分之一保持簡單(會放時鐘)。\n- 不要出現文字和商標。\n畫完請檢視整體與左右傾斜的畫面,有破綻就修正。`,
       },
       {
         title: t`依參考圖重畫單一圖層`,
@@ -562,7 +573,7 @@
 
   /** Puts a template in the message box (after any text already there) and selects its first blank. */
   function useTemplate(text) {
-    const input = $('assistantInput');
+    const input = inputEl();
     const before = input.value.trim() ? `${input.value.replace(/\s+$/, '')}\n\n` : '';
     input.value = before + text;
     setTemplateMenu(false);
@@ -571,13 +582,16 @@
     const close = open < 0 ? -1 : input.value.indexOf('〕', open);
     if (close > open) input.setSelectionRange(open, close + 1);
     else input.setSelectionRange(input.value.length, input.value.length);
+    updatePromptCount();
   }
 
   function saveCurrentAsTemplate() {
-    const text = $('assistantInput').value.trim();
+    const input = inputEl();
+    const text = input.value.trim();
     if (!text) {
       setTemplateMenu(false);
-      addNotice(t`先在下面的輸入框寫好提示詞,再存成模板。`);
+      if (editorOpen()) input.focus();
+      else addNotice(t`先在下面的輸入框寫好提示詞,再存成模板。`);
       return;
     }
     const title = (window.prompt(t`這個模板要叫什麼名字?`, text.split('\n')[0].slice(0, 20)) || '').trim();
@@ -588,7 +602,7 @@
   }
 
   function renderTemplateMenu() {
-    const menu = $('templateMenu');
+    const menu = menuEl();
     menu.textContent = '';
     const group = (label) => {
       const el = document.createElement('div');
@@ -648,11 +662,45 @@
   }
 
   function setTemplateMenu(open) {
-    const menu = $('templateMenu');
-    if (open) renderTemplateMenu();
-    menu.hidden = !open;
-    $('assistantTemplates').setAttribute('aria-expanded', String(open));
-    if (open) menu.querySelector('.template-item').focus();
+    for (const id of ['templateMenu', 'promptTemplateMenu']) $(id).hidden = true;
+    for (const id of ['assistantTemplates', 'promptTemplates']) $(id).setAttribute('aria-expanded', 'false');
+    if (!open) return;
+    renderTemplateMenu();
+    menuEl().hidden = false;
+    menuButton().setAttribute('aria-expanded', 'true');
+    menuEl().querySelector('.template-item').focus();
+  }
+
+  // ---------------------------------------------------------------- prompt editor
+  // A large window for writing a long prompt. It edits the same message as the small box in the
+  // panel: the text moves over when it opens and back when it closes.
+  function updatePromptCount() {
+    const length = $('promptText').value.length;
+    $('promptCount').textContent = length ? t`${length} 字` : '';
+  }
+
+  function openPromptEditor() {
+    if (running) return;
+    setTemplateMenu(false);
+    const text = $('promptText');
+    text.value = $('assistantInput').value;
+    $('promptEditor').showModal();
+    updatePromptCount();
+    text.focus();
+    text.setSelectionRange(text.value.length, text.value.length);
+  }
+
+  function closePromptEditor() {
+    setTemplateMenu(false);
+    $('assistantInput').value = $('promptText').value;
+    if ($('promptEditor').open) $('promptEditor').close();
+    $('assistantInput').focus();
+  }
+
+  function sendFromPromptEditor() {
+    if (!$('promptText').value.trim()) return;
+    closePromptEditor();
+    submit();
   }
 
   function submit() {
@@ -892,8 +940,9 @@
       if (session) session.abort();
     });
     $('assistantInput').addEventListener('keydown', (event) => {
-      // Enter sends; Shift+Enter starts a new line. Not while an input method is composing.
-      if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+      // Enter sends; Shift+Enter starts a new line. Not while an input method is composing, and
+      // not in the phone app, where the on-screen keyboard's Enter is the only way to a new line.
+      if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && !window.WALL_APP) {
         event.preventDefault();
         submit();
       }
@@ -918,16 +967,54 @@
       if (event.dataTransfer) attach(Array.from(event.dataTransfer.files));
     });
     $('assistantReset').addEventListener('click', resetConversation);
-    $('assistantTemplates').addEventListener('click', () => setTemplateMenu($('templateMenu').hidden));
+    for (const id of ['assistantTemplates', 'promptTemplates']) {
+      $(id).addEventListener('click', () => setTemplateMenu(menuEl().hidden));
+    }
     document.addEventListener('pointerdown', (event) => {
-      if ($('templateMenu').hidden || event.target.closest('#templateMenu, #assistantTemplates')) return;
+      if (menuEl().hidden || event.target.closest('.template-menu, #assistantTemplates, #promptTemplates')) return;
       setTemplateMenu(false);
     });
-    $('templateMenu').addEventListener('keydown', (event) => {
-      if (event.key !== 'Escape') return;
-      event.stopPropagation();
+    for (const id of ['templateMenu', 'promptTemplateMenu']) {
+      $(id).addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape') return;
+        // Closes the menu only, not the prompt editor it may be in.
+        event.preventDefault();
+        event.stopPropagation();
+        const button = menuButton();
+        setTemplateMenu(false);
+        button.focus();
+      });
+    }
+
+    $('assistantExpand').addEventListener('click', openPromptEditor);
+    $('promptCollapse').addEventListener('click', closePromptEditor);
+    $('promptSend').addEventListener('click', sendFromPromptEditor);
+    $('promptAttach').addEventListener('click', () => $('assistantFile').click());
+    $('promptText').addEventListener('input', updatePromptCount);
+    $('promptText').addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+        event.preventDefault();
+        sendFromPromptEditor();
+      }
+    });
+    $('promptText').addEventListener('paste', (event) => {
+      const files = Array.from(event.clipboardData ? event.clipboardData.files : []);
+      if (files.some((f) => f.type.startsWith('image/'))) {
+        event.preventDefault();
+        attach(files);
+      }
+    });
+    // Closed with Esc: the text goes back to the small box, like the Collapse button.
+    $('promptEditor').addEventListener('close', () => {
       setTemplateMenu(false);
-      $('assistantTemplates').focus();
+      $('assistantInput').value = $('promptText').value;
+    });
+    $('promptEditor').addEventListener('dragover', (event) => event.preventDefault());
+    $('promptEditor').addEventListener('drop', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      $('dropOverlay').hidden = true;
+      if (event.dataTransfer) attach(Array.from(event.dataTransfer.files));
     });
     document.querySelectorAll('[data-suggest]').forEach((button) => {
       button.addEventListener('click', () => {
