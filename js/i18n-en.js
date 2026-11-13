@@ -198,6 +198,35 @@ window.WallI18nEn = {
   '完成': 'Done',
 
   // ---- assistant panel
+  '模板': 'Templates',
+  '插入提示詞模板,或把目前輸入的文字存成自己的模板': 'Insert a prompt template, or save the text you have typed as your own template',
+  '我的模板': 'My templates',
+  '內建模板': 'Built-in templates',
+  '＋ 把目前輸入的文字存成模板': '+ Save the current text as a template',
+  '這個模板要叫什麼名字?': 'What should this template be called?',
+  '先在下面的輸入框寫好提示詞,再存成模板。': 'Write a prompt in the box below first, then save it as a template.',
+  '無法儲存模板:瀏覽器不允許這個頁面保存資料。': 'Could not save the template: the browser does not let this page store data.',
+  '刪除這個模板': 'Delete this template',
+  '刪除模板「{}」': 'Delete the template "{}"',
+  '要刪除模板「{}」嗎?': 'Delete the template "{}"?',
+  '從零生成整張桌布': 'A whole wallpaper from scratch',
+  '請畫一張〔主題,例如:雨後的老街〕的空間桌布。\n- 畫風:〔扁平插畫/像素風/低多邊形〕,色調以〔主色〕為主,帶一點〔點綴色〕。\n- 時間與氣氛:〔黃昏、安靜〕。\n- 一定要有的東西:〔地標或物件〕。\n- 請分成 5–7 個由遠到近的圖層,主體放在畫面中段偏下,上方三分之一保持簡單(會放時鐘)。\n- 不要出現文字和商標。\n畫完請檢視整體與左右傾斜的畫面,有破綻就修正。':
+    'Draw a spatial wallpaper of 〔subject, e.g. an old street after rain〕.\n- Style: 〔flat illustration / pixel art / low-poly〕, mostly 〔main colour〕 with a touch of 〔accent colour〕.\n- Time and mood: 〔dusk, quiet〕.\n- Must include: 〔landmarks or objects〕.\n- Split it into 5–7 layers from far to near, put the subject a little below the middle, and keep the top third simple (the clock goes there).\n- No text and no logos.\nWhen done, view the whole picture and the left and right tilts, and fix anything that breaks.',
+  '依參考圖重畫單一圖層': 'Redraw one layer from a reference picture',
+  '請只重畫圖層「〔圖層名稱〕」這一層(取代它的圖,不要新增、刪除或更動其他圖層,也不要改場景設定)。\n附圖是參考照片,請抓造型與比例,不要抓雜訊:〔用兩三句描述它由哪些部分組成、朝哪個方向〕。\n- 位置與大小:維持在原本的位置,範圍以外全部透明。\n- 風格:和現有場景一致(色調、明暗方向、有無描邊都照現有圖層)。\n畫完請檢視畫面,和附圖比對造型,不像就再改一次。':
+    'Redraw only the layer "〔layer name〕" (replace its artwork; do not add, delete or change any other layer, and leave the scene settings alone).\nThe attached picture is a reference photo; take its shape and proportions, not its noise: 〔two or three sentences on what parts it is made of and which way it points〕.\n- Place and size: keep it where it is now, with everything outside it transparent.\n- Style: match the existing scene (colours, light direction, outlines or none, as in the other layers).\nWhen done, view the canvas, compare the shape with the picture, and redraw once more if it does not match.',
+  '新增一個物件圖層': 'Add one object as a new layer',
+  '請新增一個圖層:〔要加的東西〕。\n- 位置:畫面〔左/中/右〕、〔上/中/下〕,大約佔畫面寬度的〔幾分之幾〕。\n- 遠近:放在「〔較遠的圖層〕」和「〔較近的圖層〕」之間。\n- 風格與色調要和現有圖層一致,其他圖層都不要動。\n畫完請檢視整體畫面,確認沒有擋到主體。':
+    'Add one new layer: 〔what to add〕.\n- Place: 〔left / centre / right〕, 〔top / middle / bottom〕, about 〔what fraction〕 of the width.\n- Distance: between "〔the layer behind it〕" and "〔the layer in front of it〕".\n- Match the style and colours of the existing layers, and do not touch any other layer.\nWhen done, view the whole picture and check that the subject is not covered.',
+  '依照片調整構圖': 'Match the composition to a photo',
+  '附圖是實景照片。請對照照片調整目前的構圖,讓相對位置和照片一致:\n- 左邊是〔…〕,右邊是〔…〕,中間是〔…〕,後方是〔…〕。\n- 可以重畫需要改的圖層,但保留這些不要動:〔圖層名稱〕。\n- 維持現有的畫風、色調與圖層遠近順序。\n改完請檢視整體畫面,並說明哪些圖層改了。':
+    'The attached picture is a photo of the real place. Adjust the current composition so things sit where they do in the photo:\n- On the left 〔…〕, on the right 〔…〕, in the middle 〔…〕, behind 〔…〕.\n- Redraw the layers that need it, but leave these alone: 〔layer names〕.\n- Keep the current style, colours and order of distances.\nWhen done, view the whole picture and say which layers changed.',
+  '調整色調與氣氛': 'Change the colours and mood',
+  '請把整體色調改成〔例如:清晨的冷藍帶一點粉橘〕,時間感改成〔清晨/正午/黃昏/深夜〕。\n- 所有圖層的造型與位置都不要動,只改顏色、明暗與光源方向。\n- 遠的圖層要比近的圖層淡、對比低。\n改完請檢視整體畫面,確認各圖層的色調一致。':
+    'Change the overall colours to 〔e.g. cool early-morning blue with a little peach〕 and the time of day to 〔dawn / noon / dusk / late night〕.\n- Keep every shape and position; change only colours, light and shade, and the direction of the light.\n- Far layers should be paler and lower in contrast than near ones.\nWhen done, view the whole picture and check that the layers agree in colour.',
+  '檢查視差並修正破綻': 'Check the parallax and fix what breaks',
+  '請不要改構圖,只做檢查與修正:\n1. 檢視整體畫面,以及向左、向右、向上、向下傾斜到底的畫面。\n2. 找出傾斜時露出的空白邊緣、懸空的物件、和遠近順序不合理的圖層。\n3. 逐一修正(把圖畫出邊界外一些、補上地面、調整遠近),每修一處再檢視一次。\n最後列出修了哪些地方。':
+    'Do not change the composition; only check and fix:\n1. View the whole picture, and the picture tilted fully left, right, up and down.\n2. Find empty edges that show when tilted, objects left floating, and layers whose distance does not make sense.\n3. Fix them one at a time (draw a little past the edge, add ground, adjust the distance), viewing again after each fix.\nFinish with a list of what you fixed.',
   '新對話': 'New chat',
   '清除對話,從頭開始(不會動到圖層)': 'Clear the conversation and start over (layers are not touched)',
   '設定': 'Settings',

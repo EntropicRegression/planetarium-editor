@@ -159,6 +159,8 @@
       <textarea id="assistantInput" class="assistant-input" rows="3" aria-label="給 AI 助手的訊息" placeholder="描述想要的畫面… (Enter 送出,Shift+Enter 換行)"></textarea>
       <div class="assistant-bar">
         <button id="assistantAttach" class="small" title="附上參考圖(也可以直接貼上或拖進來)">＋ 參考圖</button>
+        <button id="assistantTemplates" class="small" aria-haspopup="menu" aria-expanded="false" title="插入提示詞模板,或把目前輸入的文字存成自己的模板">模板</button>
+        <div id="templateMenu" class="template-menu" role="menu" hidden></div>
         <span id="assistantUsage" class="hint"></span>
         <button id="assistantStop" class="small danger" hidden>停止</button>
         <button id="assistantSend" class="small primary">送出</button>

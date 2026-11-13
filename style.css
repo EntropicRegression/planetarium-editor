@@ -371,7 +371,26 @@ select.small { padding: 4px 8px; font-size: 13px; }
   background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px;
 }
 .assistant-input:disabled { opacity: 0.5; }
-.assistant-bar { display: flex; align-items: center; gap: 8px; }
+.assistant-bar { display: flex; align-items: center; gap: 8px; position: relative; }
+.template-menu {
+  position: absolute; left: 0; right: 0; bottom: calc(100% + 6px); z-index: 20;
+  max-height: min(60vh, 420px); overflow-y: auto;
+  padding: 6px; border-radius: var(--radius);
+  background: var(--panel); border: 1px solid var(--line);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+.template-menu .template-group { margin: 6px 8px 2px; font-size: 11px; color: var(--muted); }
+.template-row { display: flex; align-items: stretch; gap: 4px; }
+.template-item {
+  flex: 1; min-width: 0; display: block; padding: 7px 10px; margin: 2px 0;
+  text-align: left; white-space: normal; border: 0; background: none; border-radius: 6px;
+}
+.template-item:hover, .template-item:focus-visible { background: var(--panel-2); }
+.template-item strong { display: block; font-size: 13px; font-weight: 600; }
+.template-item span { display: block; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.template-delete { flex: none; margin: 2px 0; padding: 0 9px; border: 0; background: none; color: var(--muted); border-radius: 6px; }
+.template-delete:hover { background: var(--panel-2); color: var(--danger); }
+.template-menu hr { border: 0; border-top: 1px solid var(--line); margin: 6px 0; }
 .assistant-bar .hint { flex: 1; margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .dialog {

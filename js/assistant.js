@@ -443,6 +443,8 @@
     $('assistantStop').hidden = !on;
     $('assistantInput').disabled = on;
     $('assistantAttach').disabled = on;
+    $('assistantTemplates').disabled = on;
+    if (on) setTemplateMenu(false);
     $('assistantReset').disabled = on;
     $('assistantModelChip').disabled = on;
     if (!on) $('assistantInput').focus();
@@ -502,6 +504,155 @@
       }
     }
     renderAttachments();
+  }
+
+  // ---------------------------------------------------------------- prompt templates
+  // Ready-made requests with 〔blanks〕 to fill in. The built-in ones encode what works well with
+  // the tools (one layer at a time, say where and how big, ask for a self-check); the person can
+  // keep their own next to them, stored in this browser only.
+  const TEMPLATE_STORE = 'spatialEditor.ai.templates';
+
+  function builtInTemplates() {
+    return [
+      {
+        title: t`從零生成整張桌布`,
+        text: t`請畫一張〔主題,例如:雨後的老街〕的空間桌布。\n- 畫風:〔扁平插畫/像素風/低多邊形〕,色調以〔主色〕為主,帶一點〔點綴色〕。\n- 時間與氣氛:〔黃昏、安靜〕。\n- 一定要有的東西:〔地標或物件〕。\n- 請分成 5–7 個由遠到近的圖層,主體放在畫面中段偏下,上方三分之一保持簡單(會放時鐘)。\n- 不要出現文字和商標。\n畫完請檢視整體與左右傾斜的畫面,有破綻就修正。`,
+      },
+      {
+        title: t`依參考圖重畫單一圖層`,
+        text: t`請只重畫圖層「〔圖層名稱〕」這一層(取代它的圖,不要新增、刪除或更動其他圖層,也不要改場景設定)。\n附圖是參考照片,請抓造型與比例,不要抓雜訊:〔用兩三句描述它由哪些部分組成、朝哪個方向〕。\n- 位置與大小:維持在原本的位置,範圍以外全部透明。\n- 風格:和現有場景一致(色調、明暗方向、有無描邊都照現有圖層)。\n畫完請檢視畫面,和附圖比對造型,不像就再改一次。`,
+      },
+      {
+        title: t`新增一個物件圖層`,
+        text: t`請新增一個圖層:〔要加的東西〕。\n- 位置:畫面〔左/中/右〕、〔上/中/下〕,大約佔畫面寬度的〔幾分之幾〕。\n- 遠近:放在「〔較遠的圖層〕」和「〔較近的圖層〕」之間。\n- 風格與色調要和現有圖層一致,其他圖層都不要動。\n畫完請檢視整體畫面,確認沒有擋到主體。`,
+      },
+      {
+        title: t`依照片調整構圖`,
+        text: t`附圖是實景照片。請對照照片調整目前的構圖,讓相對位置和照片一致:\n- 左邊是〔…〕,右邊是〔…〕,中間是〔…〕,後方是〔…〕。\n- 可以重畫需要改的圖層,但保留這些不要動:〔圖層名稱〕。\n- 維持現有的畫風、色調與圖層遠近順序。\n改完請檢視整體畫面,並說明哪些圖層改了。`,
+      },
+      {
+        title: t`調整色調與氣氛`,
+        text: t`請把整體色調改成〔例如:清晨的冷藍帶一點粉橘〕,時間感改成〔清晨/正午/黃昏/深夜〕。\n- 所有圖層的造型與位置都不要動,只改顏色、明暗與光源方向。\n- 遠的圖層要比近的圖層淡、對比低。\n改完請檢視整體畫面,確認各圖層的色調一致。`,
+      },
+      {
+        title: t`檢查視差並修正破綻`,
+        text: t`請不要改構圖,只做檢查與修正:\n1. 檢視整體畫面,以及向左、向右、向上、向下傾斜到底的畫面。\n2. 找出傾斜時露出的空白邊緣、懸空的物件、和遠近順序不合理的圖層。\n3. 逐一修正(把圖畫出邊界外一些、補上地面、調整遠近),每修一處再檢視一次。\n最後列出修了哪些地方。`,
+      },
+    ];
+  }
+
+  function customTemplates() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(TEMPLATE_STORE) || '[]');
+      return Array.isArray(saved) ? saved.filter((item) => item && typeof item.title === 'string' && typeof item.text === 'string') : [];
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function saveCustomTemplates(list) {
+    try {
+      localStorage.setItem(TEMPLATE_STORE, JSON.stringify(list));
+      return true;
+    } catch (error) {
+      addNotice(t`無法儲存模板:瀏覽器不允許這個頁面保存資料。`, true);
+      return false;
+    }
+  }
+
+  /** Puts a template in the message box (after any text already there) and selects its first blank. */
+  function useTemplate(text) {
+    const input = $('assistantInput');
+    const before = input.value.trim() ? `${input.value.replace(/\s+$/, '')}\n\n` : '';
+    input.value = before + text;
+    setTemplateMenu(false);
+    input.focus();
+    const open = input.value.indexOf('〔', before.length);
+    const close = open < 0 ? -1 : input.value.indexOf('〕', open);
+    if (close > open) input.setSelectionRange(open, close + 1);
+    else input.setSelectionRange(input.value.length, input.value.length);
+  }
+
+  function saveCurrentAsTemplate() {
+    const text = $('assistantInput').value.trim();
+    if (!text) {
+      setTemplateMenu(false);
+      addNotice(t`先在下面的輸入框寫好提示詞,再存成模板。`);
+      return;
+    }
+    const title = (window.prompt(t`這個模板要叫什麼名字?`, text.split('\n')[0].slice(0, 20)) || '').trim();
+    if (!title) return;
+    const list = customTemplates().filter((item) => item.title !== title);
+    list.push({ title: title.slice(0, 40), text });
+    if (saveCustomTemplates(list)) renderTemplateMenu();
+  }
+
+  function renderTemplateMenu() {
+    const menu = $('templateMenu');
+    menu.textContent = '';
+    const group = (label) => {
+      const el = document.createElement('div');
+      el.className = 'template-group';
+      el.textContent = label;
+      menu.appendChild(el);
+    };
+    const item = (template, onDelete) => {
+      const row = document.createElement('div');
+      row.className = 'template-row';
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'template-item';
+      button.setAttribute('role', 'menuitem');
+      const title = document.createElement('strong');
+      title.textContent = template.title;
+      const preview = document.createElement('span');
+      preview.textContent = template.text.split('\n')[0];
+      button.append(title, preview);
+      button.addEventListener('click', () => useTemplate(template.text));
+      row.appendChild(button);
+      if (onDelete) {
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'template-delete';
+        remove.textContent = '×';
+        remove.title = t`刪除這個模板`;
+        remove.setAttribute('aria-label', t`刪除模板「${template.title}」`);
+        remove.addEventListener('click', onDelete);
+        row.appendChild(remove);
+      }
+      menu.appendChild(row);
+    };
+
+    const own = customTemplates();
+    if (own.length) {
+      group(t`我的模板`);
+      own.forEach((template) =>
+        item(template, () => {
+          if (!window.confirm(t`要刪除模板「${template.title}」嗎?`)) return;
+          if (saveCustomTemplates(customTemplates().filter((other) => other.title !== template.title))) renderTemplateMenu();
+        }),
+      );
+      group(t`內建模板`);
+    }
+    builtInTemplates().forEach((template) => item(template));
+    menu.appendChild(document.createElement('hr'));
+    const save = document.createElement('button');
+    save.type = 'button';
+    save.className = 'template-item';
+    save.setAttribute('role', 'menuitem');
+    const label = document.createElement('strong');
+    label.textContent = t`＋ 把目前輸入的文字存成模板`;
+    save.appendChild(label);
+    save.addEventListener('click', saveCurrentAsTemplate);
+    menu.appendChild(save);
+  }
+
+  function setTemplateMenu(open) {
+    const menu = $('templateMenu');
+    if (open) renderTemplateMenu();
+    menu.hidden = !open;
+    $('assistantTemplates').setAttribute('aria-expanded', String(open));
+    if (open) menu.querySelector('.template-item').focus();
   }
 
   function submit() {
@@ -767,6 +918,17 @@
       if (event.dataTransfer) attach(Array.from(event.dataTransfer.files));
     });
     $('assistantReset').addEventListener('click', resetConversation);
+    $('assistantTemplates').addEventListener('click', () => setTemplateMenu($('templateMenu').hidden));
+    document.addEventListener('pointerdown', (event) => {
+      if ($('templateMenu').hidden || event.target.closest('#templateMenu, #assistantTemplates')) return;
+      setTemplateMenu(false);
+    });
+    $('templateMenu').addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      event.stopPropagation();
+      setTemplateMenu(false);
+      $('assistantTemplates').focus();
+    });
     document.querySelectorAll('[data-suggest]').forEach((button) => {
       button.addEventListener('click', () => {
         $('assistantInput').value = button.dataset.suggest;
