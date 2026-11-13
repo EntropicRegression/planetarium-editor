@@ -51,7 +51,7 @@
   const planes = new Map();
 
   let nextId = 1;
-  const view = { rx: -14, ry: -40, zoom: 1 };
+  const view = { rx: -14, ry: -40, zoom: 1, panX: 0, panY: 0 };
   const tilt = { x: 0, y: 0 };
   let tiltMode = false;
   let swaying = false;
@@ -117,8 +117,32 @@
     ctx.translate(W / 2 + layer.x * W, H / 2 + layer.y * H);
     ctx.rotate(layer.rotation * Math.PI / 180);
     ctx.scale(flip ? -s : s, s);
-    ctx.drawImage(entry.el, -entry.w / 2, -entry.h / 2, entry.w, entry.h);
+    // Only the part inside the crop is drawn, where it already was: cropping never moves the picture.
+    const c = cropOf(layer);
+    const sx = entry.w * c.l;
+    const sy = entry.h * c.t;
+    const sw = entry.w * (1 - c.l - c.r);
+    const sh = entry.h * (1 - c.t - c.b);
+    ctx.drawImage(entry.el, sx, sy, sw, sh, sx - entry.w / 2, sy - entry.h / 2, sw, sh);
     ctx.restore();
+  }
+
+  /**
+   * How much of a layer's picture is trimmed from each side, as fractions of its width and
+   * height (l, r, t, b in the picture's own orientation). Videos are never cropped: the app
+   * plays the original file.
+   */
+  function cropOf(layer) {
+    const c = (!isVideo(layer) && layer.crop) || {};
+    return { l: c.l || 0, r: c.r || 0, t: c.t || 0, b: c.b || 0 };
+  }
+
+  /** Sets one side of the crop, leaving at least a twentieth of the picture. */
+  function setCrop(layer, side, value) {
+    const c = cropOf(layer);
+    const opposite = { l: 'r', r: 'l', t: 'b', b: 't' }[side];
+    c[side] = clamp(value, 0, 0.95 - c[opposite]);
+    layer.crop = c;
   }
 
   /** How a layer is combined with what is behind it. Only video layers can be non-normal. */
@@ -224,20 +248,35 @@
     ctx.restore();
   }
 
-  /** Outline of the selected layer's image, as shown (parallax zoom included, no tilt). */
+  /** Where the crop handles of the selected layer are on the preview canvas: [{ side, x, y }]. */
+  let cropHandles = [];
+
+  /**
+   * Outline of the selected layer's picture as shown (parallax zoom included, no tilt), with a
+   * handle in the middle of each edge for cropping.
+   */
   function drawSelection(ctx, layer, W, H) {
+    cropHandles = [];
     const entry = images.get(layer.imageId);
     if (!entry) return;
     const s = coverScale(entry, W, H) * layer.scale;
-    const hw = entry.w * s / 2;
-    const hh = entry.h * s / 2;
+    const w = entry.w * s;
+    const h = entry.h * s;
     const angle = layer.rotation * Math.PI / 180;
     const zoom = parallaxOf(layer.depth).zoom;
-    const corners = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]].map(([px, py]) => {
+    const mirrored = layer.flip && entry.kind === 'image';
+    const c = cropOf(layer);
+    // The visible rectangle in the picture's own axes; mirroring swaps which side is which.
+    const x0 = -w / 2 + w * (mirrored ? c.r : c.l);
+    const x1 = w / 2 - w * (mirrored ? c.l : c.r);
+    const y0 = -h / 2 + h * c.t;
+    const y1 = h / 2 - h * c.b;
+    const place = ([px, py]) => {
       const x = layer.x * W + px * Math.cos(angle) - py * Math.sin(angle);
       const y = layer.y * H + px * Math.sin(angle) + py * Math.cos(angle);
       return [W / 2 + x * zoom, H / 2 + y * zoom];
-    });
+    };
+    const corners = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]].map(place);
     ctx.save();
     ctx.beginPath();
     corners.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
@@ -246,7 +285,47 @@
     ctx.setLineDash([8, 6]);
     ctx.strokeStyle = '#8b7cff';
     ctx.stroke();
+    ctx.setLineDash([]);
+    if (entry.kind === 'image' && !layer.locked) {
+      const mx = (x0 + x1) / 2;
+      const my = (y0 + y1) / 2;
+      const sides = [
+        [mirrored ? 'r' : 'l', [x0, my]],
+        [mirrored ? 'l' : 'r', [x1, my]],
+        ['t', [mx, y0]],
+        ['b', [mx, y1]],
+      ];
+      for (const [side, point] of sides) {
+        const [x, y] = place(point);
+        cropHandles.push({ side, x, y });
+        ctx.fillStyle = '#fff';
+        ctx.strokeStyle = '#8b7cff';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.rect(x - 8, y - 8, 16, 16);
+        ctx.fill();
+        ctx.stroke();
+      }
+    }
     ctx.restore();
+  }
+
+  /**
+   * A point of the preview (0..1 across it) in the selected picture's own coordinates: u and v
+   * run 0..1 across the whole, uncropped picture, as it is shown (mirroring included).
+   */
+  function pictureUV(layer, nx, ny) {
+    const entry = images.get(layer.imageId);
+    const { W, H } = previewSize();
+    const zoom = parallaxOf(layer.depth).zoom;
+    const x = ((nx - 0.5) * W) / zoom - layer.x * W;
+    const y = ((ny - 0.5) * H) / zoom - layer.y * H;
+    const angle = -layer.rotation * Math.PI / 180;
+    const s = coverScale(entry, W, H) * layer.scale;
+    return {
+      u: (x * Math.cos(angle) - y * Math.sin(angle)) / (entry.w * s) + 0.5,
+      v: (x * Math.sin(angle) + y * Math.cos(angle)) / (entry.h * s) + 0.5,
+    };
   }
 
   /** Fits the canvas element into its column while keeping the wallpaper's aspect ratio. */
@@ -296,6 +375,18 @@
   phone.addEventListener('pointerdown', (event) => {
     if (tiltMode) return;
     const p = phonePoint(event);
+    // A crop handle of the selected layer takes the press before anything under it.
+    const current = selected();
+    if (current && current.visible) {
+      const { W, H } = previewSize();
+      const reach = 16 * (W / p.rect.width);
+      const handle = cropHandles.find((hd) => Math.hypot(hd.x - p.x * W, hd.y - p.y * H) <= reach);
+      if (handle) {
+        phone.setPointerCapture(event.pointerId);
+        moveDrag = { crop: handle.side, layer: current };
+        return;
+      }
+    }
     const layer = hitTest(p.x, p.y);
     select(layer ? layer.id : null);
     if (!layer) return;
@@ -322,6 +413,16 @@
     }
     if (!moveDrag) return;
     const d = moveDrag;
+    if (d.crop) {
+      const p = phonePoint(event);
+      let { u, v } = pictureUV(d.layer, p.x, p.y);
+      // The picture's own left is on the right while it is mirrored.
+      if (d.layer.flip) u = 1 - u;
+      const value = { l: u, r: 1 - u, t: v, b: 1 - v }[d.crop];
+      setCrop(d.layer, d.crop, value);
+      layerChanged(d.layer);
+      return;
+    }
     d.layer.x = d.startX + (event.clientX - d.clientX) / d.rect.width / d.zoom;
     d.layer.y = d.startY + (event.clientY - d.clientY) / d.rect.height / d.zoom;
     layerChanged(d.layer);
@@ -416,7 +517,7 @@
   }
 
   function applyView() {
-    world.style.transform = `scale(${worldScale()}) rotateX(${view.rx}deg) rotateY(${view.ry}deg)`;
+    world.style.transform = `translate(${view.panX}px, ${view.panY}px) scale(${worldScale()}) rotateX(${view.rx}deg) rotateY(${view.ry}deg)`;
   }
 
   function placeBox(el, w, h, z) {
@@ -443,6 +544,12 @@
     focus.appendChild(document.createElement('span')).textContent = t`對焦面(傾斜時不動)`;
     world.appendChild(focus);
 
+    // A floor grid under the stack, for a sense of where things stand.
+    const ground = document.createElement('div');
+    ground.className = 'ground';
+    ground.style.transform = `translate(-700px, -700px) translateY(${h / 2 + 2}px) rotateX(90deg)`;
+    world.appendChild(ground);
+
     for (const layer of state.layers) {
       const plane = document.createElement('div');
       plane.className = 'plane';
@@ -452,6 +559,20 @@
       world.appendChild(plane);
       planes.set(layer.id, plane);
     }
+    // Move handles for the selected layer: one arrow per axis. Each arrow is two crossed strips,
+    // so it does not vanish when seen edge-on.
+    const gizmo = document.createElement('div');
+    gizmo.className = 'gizmo';
+    gizmo.id = 'gizmo';
+    for (const axis of ['x', 'y', 'z']) {
+      for (const twist of ['', ' twist']) {
+        const strip = document.createElement('div');
+        strip.className = `gizmo-axis axis-${axis}${twist}`;
+        strip.dataset.axis = axis;
+        gizmo.appendChild(strip);
+      }
+    }
+    world.appendChild(gizmo);
     updateSpace();
     applyView();
   }
@@ -468,20 +589,56 @@
       plane.classList.toggle('hidden-layer', !layer.visible);
       plane.querySelector('.plane-label').textContent = t`${layer.name}・深度 ${layer.depth.toFixed(2)}`;
     }
+    const gizmo = $('gizmo');
+    const layer = selected();
+    if (gizmo) {
+      gizmo.hidden = !layer || !layer.visible || !!layer.locked;
+      // At the centre of the layer's picture, just in front of its plane.
+      if (!gizmo.hidden) gizmo.style.transform = `translate3d(${layer.x * w}px, ${layer.y * h}px, ${depthToZ(layer.depth) + 2}px)`;
+    }
+  }
+
+  function setView(rx, ry) {
+    view.rx = rx;
+    view.ry = ry;
+    applyView();
+  }
+
+  /** Centres the view again without changing the angle. */
+  function frameView() {
+    view.panX = 0;
+    view.panY = 0;
+    view.zoom = 1;
+    applyView();
   }
 
   let spaceDrag = null;
 
+  space.addEventListener('contextmenu', (event) => event.preventDefault());
+
   space.addEventListener('pointerdown', (event) => {
+    // The welcome card sits inside this view; capturing the pointer would swallow its buttons' clicks.
+    if (event.target.closest('.welcome')) return;
     const plane = event.target.closest('.plane');
+    const axis = event.target.closest('.gizmo-axis');
+    // Middle button, right button or Shift + drag slides the view, as in 3D programs.
+    const panning = event.button === 1 || event.button === 2 || event.shiftKey;
+    if (event.button === 1) event.preventDefault(); // no auto-scroll cursor
     space.setPointerCapture(event.pointerId);
-    if (plane) {
+    const start = { x: event.clientX, y: event.clientY, moved: false };
+    if (panning) {
+      spaceDrag = { ...start, kind: 'pan', panX: view.panX, panY: view.panY };
+      space.classList.add('orbiting');
+    } else if (axis && selected()) {
+      const layer = selected();
+      spaceDrag = { ...start, kind: 'axis', axis: axis.dataset.axis, layer, startX: layer.x, startY: layer.y, startDepth: layer.depth };
+    } else if (plane) {
       const layer = state.layers.find((l) => String(l.id) === plane.dataset.id);
       if (!layer) return;
       select(layer.id);
-      spaceDrag = { kind: 'depth', layer, startDepth: layer.depth, x: event.clientX, y: event.clientY, moved: false };
+      spaceDrag = { ...start, kind: 'axis', axis: 'z', layer, startX: layer.x, startY: layer.y, startDepth: layer.depth };
     } else {
-      spaceDrag = { kind: 'orbit', rx: view.rx, ry: view.ry, x: event.clientX, y: event.clientY };
+      spaceDrag = { ...start, kind: 'orbit', rx: view.rx, ry: view.ry };
       space.classList.add('orbiting');
     }
   });
@@ -492,27 +649,41 @@
     const dy = event.clientY - spaceDrag.y;
     if (spaceDrag.kind === 'orbit') {
       view.ry = spaceDrag.ry + dx * 0.4;
-      view.rx = clamp(spaceDrag.rx - dy * 0.3, -70, 70);
+      view.rx = clamp(spaceDrag.rx - dy * 0.3, -89, 89);
       applyView();
       return;
     }
-    // Move the layer along the depth axis: project the pointer movement onto the direction in
-    // which that axis runs on screen for the current view angle.
+    if (spaceDrag.kind === 'pan') {
+      view.panX = spaceDrag.panX + dx;
+      view.panY = spaceDrag.panY + dy;
+      applyView();
+      return;
+    }
+    if (spaceDrag.layer.locked) return;
+    // Move the layer along one axis: project the pointer movement onto the direction in which
+    // that axis runs on screen for the current view angle.
     const rx = view.rx * Math.PI / 180;
     const ry = view.ry * Math.PI / 180;
-    const ax = Math.sin(ry);
-    const ay = -Math.cos(ry) * Math.sin(rx);
+    const [ax, ay] = {
+      x: [Math.cos(ry), Math.sin(ry) * Math.sin(rx)],
+      y: [0, Math.cos(rx)],
+      z: [Math.sin(ry), -Math.cos(ry) * Math.sin(rx)],
+    }[spaceDrag.axis];
     const len2 = ax * ax + ay * ay;
-    if (len2 < 0.02) return; // looking straight down the axis: depth cannot be dragged
-    const dz = (dx * ax + dy * ay) / len2 / worldScale();
-    spaceDrag.layer.depth = clamp(round2(spaceDrag.startDepth - dz / SPREAD), 0, 1);
+    if (len2 < 0.02) return; // looking straight down the axis: it cannot be dragged
+    const d = (dx * ax + dy * ay) / len2 / worldScale();
+    const { w, h } = planeSize();
+    const layer = spaceDrag.layer;
+    if (spaceDrag.axis === 'x') layer.x = clamp(spaceDrag.startX + d / w, -1, 1);
+    else if (spaceDrag.axis === 'y') layer.y = clamp(spaceDrag.startY + d / h, -1, 1);
+    else layer.depth = clamp(round2(spaceDrag.startDepth - d / SPREAD), 0, 1);
     spaceDrag.moved = true;
-    layerChanged(spaceDrag.layer);
+    layerChanged(layer);
   });
 
   function endSpaceDrag() {
     if (!spaceDrag) return;
-    const wasDepth = spaceDrag.kind === 'depth' && spaceDrag.moved;
+    const wasDepth = spaceDrag.kind === 'axis' && spaceDrag.moved;
     spaceDrag = null;
     space.classList.remove('orbiting');
     if (wasDepth) {
@@ -532,8 +703,13 @@
   $('resetViewBtn').addEventListener('click', () => {
     view.rx = -14;
     view.ry = -40;
-    view.zoom = 1;
-    applyView();
+    frameView();
+  });
+  document.querySelectorAll('[data-view]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const [rx, ry] = button.dataset.view.split(',').map(Number);
+      setView(rx, ry);
+    });
   });
 
   // ---------------------------------------------------------------- layer list
@@ -778,6 +954,25 @@
     layerSlider('scale', t`縮放(1 = 剛好填滿畫布)`, 0.02, 4, 0.01);
     layerSlider('rotation', t`旋轉(度)`, -180, 180, 1, 0);
     layerSlider('opacity', t`不透明度`, 0, 1, 0.01);
+    for (const [side, label] of [['l', t`裁切左側`], ['r', t`裁切右側`], ['t', t`裁切上方`], ['b', t`裁切下方`]]) {
+      addSlider($('cropFields'), {
+        label, min: 0, max: 0.95, step: 0.005, digits: 3,
+        get: () => (selected() ? cropOf(selected())[side] : undefined),
+        set: (value) => {
+          const layer = selected();
+          if (!layer) return;
+          setCrop(layer, side, value);
+          layerChanged(layer);
+        },
+      });
+    }
+    $('resetCropBtn').addEventListener('click', () => {
+      const layer = selected();
+      if (!layer) return;
+      delete layer.crop;
+      layerChanged(layer);
+      commit();
+    });
     sceneSlider('strength', t`視差強度`, 0, 0.1, 0.005, 3);
     sceneSlider('focus', t`對焦深度(這個深度的圖層不動)`, 0, 1, 0.05);
 
@@ -845,7 +1040,7 @@
     $('duplicateBtn').addEventListener('click', () => {
       const layer = selected();
       if (!layer) return;
-      const copy = { ...layer, id: nextId++, name: t`${layer.name} 複本`, x: layer.x + 0.03, y: layer.y + 0.02 };
+      const copy = { ...layer, crop: layer.crop && { ...layer.crop }, id: nextId++, name: t`${layer.name} 複本`, x: layer.x + 0.03, y: layer.y + 0.02 };
       state.layers.push(copy);
       rebake(copy);
       state.selectedId = copy.id;
@@ -866,6 +1061,7 @@
       const video = isVideo(layer);
       $('flipRow').hidden = video;
       $('blendRow').hidden = !video;
+      $('cropRow').hidden = video;
       $('layerBlend').value = layer.blend || 'normal';
     }
     bindings.forEach((b) => b.sync());
@@ -1080,7 +1276,7 @@
     $('projectInput').addEventListener('change', async (event) => {
       const file = event.target.files[0];
       event.target.value = '';
-      if (file) await openProject(file);
+      if (file) await openFile(file);
     });
   }
 
@@ -1185,6 +1381,13 @@
   }
 
   async function addFiles(files) {
+    // A project file or a wallpaper pack dropped on the window is opened, like "Open".
+    const opened = files.find((f) => /\.(zip|json)$/i.test(f.name));
+    if (opened) {
+      if (state.layers.length && !window.confirm(t`要開啟「${opened.name}」嗎?目前的圖層會被取代。`)) return;
+      await openFile(opened);
+      return;
+    }
     const pictures = files.filter((f) => f.type.startsWith('image/') || f.type.startsWith('video/'));
     if (!pictures.length) return;
     for (const file of pictures) {
@@ -1429,6 +1632,109 @@
     commit();
   }
 
+  const IMAGE_TYPES = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', bmp: 'image/bmp', avif: 'image/avif' };
+
+  /**
+   * Opens a wallpaper pack (.zip, as exported here or by the phone app) for editing: each image
+   * or video layer of its manifest becomes a layer at the same depth. Replaces the current scene.
+   * Returns notes about anything in the pack the editor has no way to show.
+   */
+  async function loadPack(bytes) {
+    let files = await window.WallZip.readZip(bytes);
+    // Accept archives made by zipping the pack's folder rather than its contents.
+    if (!files.some((f) => f.name === 'manifest.json')) {
+      const nested = files.find((f) => /^[^/]+\/manifest\.json$/.test(f.name));
+      if (!nested) throw new Error(t`壓縮檔裡找不到 manifest.json,這不是桌布包`);
+      const prefix = nested.name.slice(0, nested.name.indexOf('/') + 1);
+      files = files.filter((f) => f.name.startsWith(prefix)).map((f) => ({ name: f.name.slice(prefix.length), data: f.data }));
+    }
+    const byName = new Map(files.map((f) => [f.name, f.data]));
+    const manifest = JSON.parse(new TextDecoder().decode(byName.get('manifest.json')));
+    const specs = Array.isArray(manifest.layers) ? manifest.layers : [];
+    const notes = [];
+    const layers = [];
+    let effect = 'none';
+    let firstPicture = null;
+
+    for (const spec of specs) {
+      const data = byName.get(String(spec.src || ''));
+      const depth = round2(clamp(Number(spec.depth === undefined ? 1 : spec.depth), 0, 1));
+      const ext = String(spec.src || '').split('.').pop().toLowerCase();
+      const base = { depth, x: 0, y: 0, scale: 1, rotation: 0, opacity: 1, flip: false, blend: 'normal', visible: true };
+      if (spec.type === 'shader') {
+        // The editor's own moving effects are recognised by their source; anything else is a
+        // custom shader, which the editor cannot draw.
+        const source = data ? new TextDecoder().decode(data).trim() : '';
+        const known = Object.entries(window.WallEffects).find(([, e]) => e.source && e.source.trim() === source);
+        if (known) effect = known[0];
+        else notes.push(t`略過 shader 圖層「${spec.src}」(編輯器無法顯示自訂 shader)`);
+        continue;
+      }
+      if (!data) {
+        notes.push(t`找不到圖層檔案「${spec.src}」`);
+        continue;
+      }
+      if (spec.type === 'video') {
+        const imageId = await registerVideo(new Blob([data], { type: `video/${ext === 'mov' ? 'quicktime' : ext}` }), `video.${ext}`);
+        layers.push({
+          ...base,
+          imageId,
+          name: t`影片 ${layers.length + 1}`,
+          x: Number(spec.x) || 0,
+          y: Number(spec.y) || 0,
+          scale: Number(spec.scale) || 1,
+          rotation: Number(spec.rotation) || 0,
+          opacity: spec.opacity === undefined ? 1 : Number(spec.opacity),
+          blend: spec.blend === 'add' || spec.blend === 'screen' ? spec.blend : 'normal',
+        });
+      } else if (spec.type === 'image') {
+        const src = await readAsDataUrl(new Blob([data], { type: IMAGE_TYPES[ext] || 'image/png' }));
+        const imageId = await registerImage(src);
+        if (!firstPicture) firstPicture = images.get(imageId);
+        layers.push({ ...base, imageId, name: t`圖層 ${layers.length + 1}` });
+        if (spec.depthMap) notes.push(t`圖層「${spec.src}」的景深圖沒有帶進來(編輯器不支援)`);
+        if (spec.sprites) notes.push(t`圖層「${spec.src}」的動畫貼片沒有帶進來(編輯器不支援)`);
+      } else {
+        notes.push(t`略過不認得的圖層類型「${spec.type}」`);
+      }
+    }
+    if (!layers.length) throw new Error(t`這個桌布包沒有可以編輯的圖片或影片圖層`);
+
+    // Layers are named far to near; the canvas is the pack's own, or the first picture's size.
+    const canvas = manifest.canvas || {};
+    const width = Math.round(Number(canvas.width) || (firstPicture ? firstPicture.w : state.canvasW));
+    const height = Math.round(Number(canvas.height) || (firstPicture ? firstPicture.h : state.canvasH));
+    const parallax = manifest.parallax || {};
+    Object.assign(state, {
+      name: String(manifest.name || t`我的空間桌布`).slice(0, 80),
+      canvasW: clamp(width, 240, 4320),
+      canvasH: clamp(height, 240, 7680),
+      strength: clamp(parallax.strength === undefined ? 0.04 : Number(parallax.strength), 0, 0.1),
+      focus: clamp(parallax.focus === undefined ? 1 : Number(parallax.focus), 0, 1),
+      effect,
+      layers: layers.map((l) => ({ ...l, id: nextId++ })),
+      selectedId: null,
+    });
+    baked.clear();
+    history = [];
+    historyIndex = -1;
+    refresh();
+    commit();
+    return notes;
+  }
+
+  /** Opens whatever the person picked: a project file or a wallpaper pack. */
+  async function openFile(file) {
+    const isZip = /\.zip$/i.test(file.name) || file.type === 'application/zip' || file.type === 'application/x-zip-compressed';
+    if (!isZip) return openProject(file);
+    try {
+      const notes = await loadPack(new Uint8Array(await file.arrayBuffer()));
+      toast(notes.length ? `${t`已開啟桌布包「${state.name}」`}\n${notes.join('\n')}` : t`已開啟桌布包「${state.name}」`, false, notes.length > 0);
+    } catch (error) {
+      toast(t`無法開啟桌布包:${error.message}`, true);
+    }
+  }
+
   function newProject() {
     if (state.layers.length && !window.confirm(t`要開始新專案嗎?目前的圖層會被清除(可先用「儲存專案」留存)。`)) return;
     Object.assign(state, { name: t`我的空間桌布`, strength: 0.04, focus: 1, effect: 'none', layers: [], selectedId: null });
@@ -1557,7 +1863,7 @@
   // ---------------------------------------------------------------- misc UI
 
   let toastTimer = 0;
-  function toast(message, isError) {
+  function toast(message, isError, linger) {
     const el = $('toast');
     el.textContent = message;
     el.classList.toggle('error', !!isError);
@@ -1565,7 +1871,7 @@
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => {
       el.hidden = true;
-    }, isError ? 7000 : 5000);
+    }, isError || linger ? 9000 : 5000);
   }
 
   function clamp(value, min, max) {
@@ -1600,6 +1906,16 @@
     if (isTyping(event.target)) return;
     if (event.key === '?') {
       $('helpDialog').showModal();
+      return;
+    }
+    // View shortcuts, as on a 3D program's number pad.
+    const views = { 1: [0, 0], 3: [0, -90], 7: [-89, 0], 0: [-14, -40] };
+    if (views[event.key] && !mod) {
+      setView(...views[event.key]);
+      return;
+    }
+    if (event.key.toLowerCase() === 'f' && !mod) {
+      frameView();
       return;
     }
     const layer = selected();
@@ -1827,6 +2143,10 @@
       rotation: layer.rotation,
       opacity: layer.opacity,
       visible: layer.visible,
+      crop: (() => {
+        const c = cropOf(layer);
+        return c.l || c.r || c.t || c.b ? { left: c.l, right: c.r, top: c.t, bottom: c.b } : undefined;
+      })(),
     };
   }
 
@@ -2079,6 +2399,9 @@
       if (p.rotation !== undefined) layer.rotation = clamp(Number(p.rotation), -180, 180);
       if (p.opacity !== undefined) layer.opacity = clamp(Number(p.opacity), 0, 1);
       if (p.visible !== undefined) layer.visible = !!p.visible;
+      for (const [key, side] of [['crop_left', 'l'], ['crop_right', 'r'], ['crop_top', 't'], ['crop_bottom', 'b']]) {
+        if (p[key] !== undefined) setCrop(layer, side, Number(p[key]) || 0);
+      }
       refresh();
       commit();
       return describeLayer(layer);
@@ -2115,5 +2438,6 @@
     },
     refresh,
     buildPackZip,
+    loadPack,
   };
 })();

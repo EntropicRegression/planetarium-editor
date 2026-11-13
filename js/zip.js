@@ -88,5 +88,53 @@
     return out;
   }
 
-  window.WallZip = { makeZip, crc32 };
+  /**
+   * Reads a zip archive: resolves with [{ name, data }] for every file in it. Handles stored and
+   * deflated entries (deflate through the browser's own DecompressionStream), which covers zips
+   * made by this editor, by the phone app and by ordinary archive tools.
+   */
+  async function readZip(bytes) {
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    // The end-of-central-directory record is at the very end, before an optional comment.
+    let end = -1;
+    for (let i = bytes.length - 22; i >= Math.max(0, bytes.length - 22 - 65535); i--) {
+      if (view.getUint32(i, true) === 0x06054b50) {
+        end = i;
+        break;
+      }
+    }
+    if (end < 0) throw new Error('not a zip file');
+    const count = view.getUint16(end + 10, true);
+    let pos = view.getUint32(end + 16, true);
+    const decoder = new TextDecoder();
+    const files = [];
+    for (let n = 0; n < count; n++) {
+      if (pos + 46 > bytes.length || view.getUint32(pos, true) !== 0x02014b50) throw new Error('damaged zip file');
+      const method = view.getUint16(pos + 10, true);
+      const packedSize = view.getUint32(pos + 20, true);
+      const nameLength = view.getUint16(pos + 28, true);
+      const extraLength = view.getUint16(pos + 30, true);
+      const commentLength = view.getUint16(pos + 32, true);
+      const local = view.getUint32(pos + 42, true);
+      const name = decoder.decode(bytes.subarray(pos + 46, pos + 46 + nameLength)).replace(/\\/g, '/');
+      pos += 46 + nameLength + extraLength + commentLength;
+      if (name.endsWith('/')) continue; // a folder
+      // The local header repeats the name and may carry a different amount of extra data.
+      const start = local + 30 + view.getUint16(local + 26, true) + view.getUint16(local + 28, true);
+      const packed = bytes.subarray(start, start + packedSize);
+      let data;
+      if (method === 0) {
+        data = packed.slice();
+      } else if (method === 8) {
+        const stream = new Blob([packed]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+        data = new Uint8Array(await new Response(stream).arrayBuffer());
+      } else {
+        throw new Error(`"${name}" uses a compression method this editor cannot read`);
+      }
+      files.push({ name, data });
+    }
+    return files;
+  }
+
+  window.WallZip = { makeZip, readZip, crc32 };
 })();

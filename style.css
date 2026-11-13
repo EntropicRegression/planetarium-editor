@@ -201,6 +201,42 @@ select.small { padding: 4px 8px; font-size: 13px; }
   pointer-events: none;
 }
 .plane.selected .plane-label { color: var(--accent); }
+.ground {
+  position: absolute; left: 0; top: 0;
+  width: 1400px; height: 1400px;
+  pointer-events: none;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px) 0 0 / 70px 70px,
+    linear-gradient(90deg, rgba(255, 255, 255, 0.07) 1px, transparent 1px) 0 0 / 70px 70px;
+  -webkit-mask-image: radial-gradient(circle, #000 30%, transparent 68%);
+  mask-image: radial-gradient(circle, #000 30%, transparent 68%);
+}
+.gizmo { position: absolute; left: 0; top: 0; width: 0; height: 0; transform-style: preserve-3d; }
+.gizmo-axis {
+  position: absolute; left: 0; top: -5px;
+  width: 104px; height: 10px;
+  transform-origin: 0 50%;
+  border-radius: 3px;
+  cursor: grab;
+  /* A fat transparent margin makes the thin arrow easy to grab. */
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+.gizmo-axis::after {
+  content: ''; position: absolute; right: -14px; top: -6px;
+  border: 8px solid transparent; border-left: 14px solid currentColor;
+}
+.gizmo-axis:hover { filter: brightness(1.4); }
+.axis-x { color: #ff5a6a; background-color: #ff5a6a; }
+.axis-y { color: #6fd08c; background-color: #6fd08c; transform: rotateZ(-90deg); }
+.axis-z { color: #5aa2ff; background-color: #5aa2ff; transform: rotateY(-90deg); }
+.axis-x.twist { transform: rotateX(90deg); }
+.axis-y.twist { transform: rotateZ(-90deg) rotateX(90deg); }
+.axis-z.twist { transform: rotateY(-90deg) rotateX(90deg); }
+.view-presets { display: inline-flex; gap: 4px; }
+.crop-row { margin: 10px 0; padding: 8px 10px 4px; border-radius: var(--radius); background: var(--panel-2); }
+.crop-head { display: flex; align-items: center; justify-content: space-between; font-size: 13px; font-weight: 600; }
+
 .focus-plane {
   position: absolute;
   left: 0; top: 0;
@@ -267,6 +303,7 @@ select.small { padding: 4px 8px; font-size: 13px; }
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
   z-index: 20;
 }
+.toast { white-space: pre-line; }
 .toast.error { border-color: var(--danger); color: var(--danger); }
 .drop-overlay {
   position: fixed; inset: 0;

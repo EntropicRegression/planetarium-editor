@@ -25,7 +25,7 @@
     <button id="undoBtn" title="復原 (Ctrl+Z)">復原</button>
     <button id="redoBtn" title="重做 (Ctrl+Y)">重做</button>
     <button id="newProjectBtn" title="清空畫布,開始新的桌布">新專案</button>
-    <button id="openProjectBtn">開啟專案</button>
+    <button id="openProjectBtn" title="開啟專案檔 (.wallproj.json) 或桌布包 (.zip)">開啟專案</button>
     <button id="saveProjectBtn">儲存專案</button>
     <button id="exportImageBtn" title="把靜止時的畫面存成一張 PNG">匯出預覽圖</button>
     <button id="exportBtn" class="primary">匯出桌布包 .zip</button>
@@ -47,8 +47,13 @@
     <section class="view space-view">
       <div class="view-head">
         <h2>3D 空間</h2>
-        <span class="hint">拖曳空白處旋轉・滾輪縮放・拖曳圖層改變遠近</span>
-        <button id="resetViewBtn" class="small">重設視角</button>
+        <span class="hint">拖曳旋轉・Shift 或右鍵拖曳平移・滾輪縮放・拖曳箭頭移動圖層</span>
+        <span class="view-presets" role="group" aria-label="視角">
+          <button class="small" data-view="0,0" title="從正面看 (1)">正面</button>
+          <button class="small" data-view="0,-90" title="從側面看 (3)">側面</button>
+          <button class="small" data-view="-89,0" title="從上方看 (7)">俯視</button>
+        </span>
+        <button id="resetViewBtn" class="small" title="回到預設的斜角視角並置中 (0)">重設視角</button>
       </div>
       <div id="space" class="space">
         <div id="world" class="world"></div>
@@ -95,6 +100,14 @@
           <button id="fitCoverBtn" class="small">填滿畫布</button>
           <button id="fitContainBtn" class="small">完整顯示</button>
           <button id="centerBtn" class="small">置中</button>
+        </div>
+        <div id="cropRow" class="crop-row">
+          <div class="crop-head">
+            <span>裁切</span>
+            <button id="resetCropBtn" class="small" title="恢復顯示整張圖">重設裁切</button>
+          </div>
+          <p class="hint">只留下圖片的一部分。也可以直接拖曳預覽上框線中間的白色方塊。</p>
+          <div id="cropFields"></div>
         </div>
         <label id="flipRow" class="toggle"><input id="layerFlip" type="checkbox"> 水平翻轉</label>
         <label id="blendRow" class="field">混合方式(影片)
@@ -215,14 +228,19 @@
         <dt>滾輪</dt><dd>縮放</dd>
         <dt>Shift + 滾輪</dt><dd>旋轉</dd>
         <dt>方向鍵</dt><dd>微調位置(加 Shift 移動較多)</dd>
+        <dt>拖曳框線上的白色方塊</dt><dd>裁切圖片的那一側</dd>
       </dl>
     </section>
     <section class="dialog-section">
       <h3>3D 空間</h3>
       <dl class="keys">
         <dt>拖曳空白處</dt><dd>旋轉視角</dd>
-        <dt>拖曳圖層</dt><dd>改變遠近</dd>
+        <dt>Shift + 拖曳、右鍵或中鍵拖曳</dt><dd>平移視角</dd>
         <dt>滾輪</dt><dd>拉近、拉遠</dd>
+        <dt>拖曳紅、綠、藍箭頭</dt><dd>沿左右、上下、遠近移動選取的圖層</dd>
+        <dt>拖曳圖層本身</dt><dd>改變遠近</dd>
+        <dt>1 / 3 / 7 / 0</dt><dd>正面、側面、俯視、預設斜角</dd>
+        <dt>F</dt><dd>視角置中</dd>
         <dt>[ 、 ]</dt><dd>選取的圖層往近、往遠移一格</dd>
       </dl>
     </section>
@@ -247,7 +265,7 @@
 
   <input id="imageInput" type="file" accept="image/*,video/*" multiple hidden>
   <input id="replaceInput" type="file" accept="image/*,video/*" hidden>
-  <input id="projectInput" type="file" accept=".json,application/json" hidden>
+  <input id="projectInput" type="file" accept=".json,.zip,application/json,application/zip" hidden>
   <input id="assistantFile" type="file" accept="image/*" multiple hidden>
 
   <script src="js/i18n-en.js"></script>

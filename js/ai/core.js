@@ -129,7 +129,7 @@ For pixel art, either write SVG on a coarse grid (shape-rendering="crispEdges" o
 
 # Pictures
 
-Pictures available to you are numbered ref:1, ref:2 and so on: the ones the person attached appear in the conversation with their pixel sizes, and get_scene lists all of them. Study the person's pictures for composition, palette and mood. Any picture can go on a layer in two ways: add_image_layer places it whole, and inside SVG <image href="ref:1" x=".." y=".." width=".." height=".." preserveAspectRatio="xMidYMid slice"/> places it where you want, where a clipPath or mask can cut a region out of it. Cut-outs made with clip paths are rough, so for the person's own photographs redraw the scene unless the photograph itself is what they asked for.`;
+Pictures available to you are numbered ref:1, ref:2 and so on: the ones the person attached appear in the conversation with their pixel sizes, and get_scene lists all of them. Study the person's pictures for composition, palette and mood. Any picture can go on a layer in two ways: add_image_layer places it whole (update_layer can then crop it to the part you want), and inside SVG <image href="ref:1" x=".." y=".." width=".." height=".." preserveAspectRatio="xMidYMid slice"/> places it where you want, where a clipPath or mask can cut a region out of it. Cut-outs made with clip paths are rough, so for the person's own photographs redraw the scene unless the photograph itself is what they asked for.`;
 
   const PROMPT_IMAGES = `
 
@@ -277,6 +277,10 @@ Write to the person in the language they write in.`;
           y: { type: 'number', description: 'Vertical offset as a fraction of the canvas height; 0 = centred.' },
           scale: { type: 'number', description: '1 = filling the canvas (or as drawn).' },
           rotation: { type: 'number', description: 'Degrees.' },
+          crop_left: { type: 'number', description: 'Fraction of the picture trimmed from its left, 0 to 0.95. The rest stays where it is. Not for videos.' },
+          crop_right: { type: 'number', description: 'Fraction trimmed from the right.' },
+          crop_top: { type: 'number', description: 'Fraction trimmed from the top.' },
+          crop_bottom: { type: 'number', description: 'Fraction trimmed from the bottom.' },
         },
         required: ['layer_id'],
       },

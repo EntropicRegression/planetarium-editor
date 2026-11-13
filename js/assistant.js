@@ -603,6 +603,9 @@
     $('aiSignInStatus').textContent = status.signedIn ? t`已登入${status.account ? `:${status.account}` : ''}` : t`尚未登入。`;
     $('aiSignInBtn').hidden = status.signedIn;
     $('aiSignOutBtn').hidden = !status.signedIn;
+    // Signing in replaces the built-in model list with the ones this account may use.
+    fillSelect($('aiModel'), p.models, modelOf(p));
+    renderHeader();
   }
 
   function syncSettingsDialog() {

@@ -24,6 +24,7 @@ import os
 import secrets
 import sys
 import threading
+import uuid
 import time
 import urllib.parse
 import webbrowser
@@ -166,8 +167,9 @@ def start_sign_in(port):
     global last_error
     with lock:
         store = load_store()
-        if not store.get('host_id'):
-            store['host_id'] = secrets.token_hex(16)  # identifies this installation to OpenAI
+        # Identifies this installation to OpenAI: a UUID URN, chosen once and sent every time.
+        if not str(store.get('host_id', '')).startswith('urn:uuid:'):
+            store['host_id'] = 'urn:uuid:%s' % uuid.uuid4()
             save_store(store)
         verifier = base64.urlsafe_b64encode(secrets.token_bytes(48)).rstrip(b'=').decode()
         challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b'=').decode()
@@ -192,10 +194,13 @@ def start_sign_in(port):
             'code_challenge_method': 'S256',
             'state': pending['state'],
             'nonce': pending['nonce'],
+            'ext_agent_host_id': store['host_id'],
         }
         if client_id == FIRST_CLIENT_ID:
-            params['agent_name_hint'] = APP_NAME
-            params['ext_agent_host_id'] = store['host_id']
+            params['agent_name_hint'] = APP_NAME  # shown to the person; only sent when registering
+        elif store.get('id_token'):
+            # Signing in again: tells OpenAI which account this was, even if that token has expired.
+            params['id_token_hint'] = store['id_token']
         return AUTHORIZE_URL + '?' + urllib.parse.urlencode(params)
 
 
@@ -213,6 +218,10 @@ def finish_sign_in(query):
     if not query.get('code'):
         return 'OpenAI sent no authorization code.'
     client_id = query.get('client_id') or attempt['client_id']
+    if client_id == FIRST_CLIENT_ID:
+        return 'OpenAI did not issue this app a client id; the registration is incomplete. Try again.'
+    if attempt['client_id'] != FIRST_CLIENT_ID and client_id != attempt['client_id']:
+        return 'The sign-in came back for a different app than the one that asked.'
     status, body = token_request({
         'grant_type': 'authorization_code',
         'client_id': client_id,
