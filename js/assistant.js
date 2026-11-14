@@ -29,6 +29,7 @@
     update_layer_art: t`重畫圖層`,
     read_layer_art: t`讀取圖層原稿`,
     update_layer: t`調整圖層`,
+    merge_layers: t`合併圖層`,
     delete_layer: t`刪除圖層`,
     view_canvas: t`檢視畫面`,
     view_image: t`檢視圖片`,
@@ -119,6 +120,7 @@
       case 'update_layer_art': return text(await editor.replaceArt(input.layer_id, input));
       case 'read_layer_art': return text(editor.readArt(input.layer_id));
       case 'update_layer': return text(editor.updateLayer(input.layer_id, input));
+      case 'merge_layers': return text(await editor.mergeLayers(input));
       case 'delete_layer': return text(editor.deleteLayer(input.layer_id));
       case 'view_canvas': {
         const shot = editor.render({ tiltX: input.tilt_x, tiltY: input.tilt_y, onlyLayerId: input.only_layer_id, time: input.time });
@@ -506,6 +508,23 @@
       };
       img.src = url;
     });
+  }
+
+  /** Adds a picture made inside the editor (a marked-up layer, say) to the message being written. */
+  function attachPicture(picture) {
+    attachments.push({ dataUrl: picture.dataUrl, w: picture.w, h: picture.h });
+    renderAttachments();
+  }
+
+  /** Puts text at the end of the message being written, on its own line. */
+  function appendToInput(text) {
+    const input = inputEl();
+    const current = input.value.replace(/\s+$/, '');
+    input.value = current ? `${current}\n\n${text}` : text;
+    if (editorOpen()) updatePromptCount();
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+    input.scrollTop = input.scrollHeight;
   }
 
   async function attach(files) {
@@ -951,6 +970,10 @@
       }
     });
     $('assistantAttach').addEventListener('click', () => $('assistantFile').click());
+    for (const id of ['assistantAnnotate', 'promptAnnotate']) {
+      // Opens on the layer being worked on, if any; the dialog can switch to anything else.
+      $(id).addEventListener('click', () => window.WallAnnotate.open(window.spatialEditor.state.selectedId || undefined));
+    }
     $('assistantFile').addEventListener('change', async (event) => {
       await attach(Array.from(event.target.files));
       event.target.value = '';
@@ -1033,6 +1056,8 @@
   window.spatialAssistant = {
     send,
     setOpen,
+    attachPicture,
+    appendToInput,
     openSettings,
     runTool,
     resetConversation,

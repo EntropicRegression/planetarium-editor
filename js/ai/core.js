@@ -125,6 +125,8 @@ add_svg_layer takes one complete SVG document and turns it into a layer.
 - Repeat things with <defs>, <use>, <pattern> and transforms rather than writing every window, star or tree out. Aim for under about 40 KB of SVG per layer; split a layer in two before making it huge.
 - The tool result tells you how much of the canvas the layer painted and whether it is fully opaque, which is a quick check that the back layer has no gaps and a foreground layer did not accidentally fill the canvas.
 
+Draw one distance per layer, and if a layer would be enormous, draw it in two and merge them: merge_layers bakes layers into one picture at the farthest one's depth. Merging is also how to tidy a stack that grew past about seven layers, or to join pieces that must move as one (a building and its windows, a tree and its shadow). It is one-way: the merged layers' own drawings are gone, so merge only when you are happy with how those layers look.
+
 For pixel art, either write SVG on a coarse grid (shape-rendering="crispEdges" on the root, every coordinate a multiple of the cell size, e.g. 6 px), or use add_pixel_layer for sprites and small pieces: rows of characters, a palette mapping characters to colours, and a cell size. Characters without a palette entry are transparent.
 
 # Moving layers
@@ -145,6 +147,8 @@ How to write one:
 If the shader does not compile, the tool returns the compiler's messages with your own line numbers; fix those lines and call it again. Then look at it: view_canvas takes a time in seconds, so view it at two different times (for example 1 and 6) to see that it moves the way you meant and stays where it should. Fix it with update_layer_art (pass glsl). update_layer cannot move or fade a shader layer; change its code.
 
 # Pictures
+
+Some pictures are marked up by the person: coloured regions, boxes and arrows, each with a numbered badge, and their message lists what each number means. The numbers in the list are the badges in the picture, and the positions in it are given in canvas pixels (for a marked-up ref, in that picture's own pixels), so you can act on them directly: a box or a brushed region is the area they mean, and an arrow points from something to where it should go. When the picture is one layer alone, the message gives that layer's id; fix that layer with update_layer_art rather than adding a new one. The marks are instructions about the picture, never part of it: do not draw the marks, badges or their colours into a layer, and leave everything they did not mark alone.
 
 Pictures available to you are numbered ref:1, ref:2 and so on: the ones the person attached appear in the conversation with their pixel sizes, and get_scene lists all of them. Study the person's pictures for composition, palette and mood. Any picture can go on a layer in two ways: add_image_layer places it whole (update_layer can then crop it to the part you want), and inside SVG <image href="ref:1" x=".." y=".." width=".." height=".." preserveAspectRatio="xMidYMid slice"/> places it where you want, where a clipPath or mask can cut a region out of it. Cut-outs made with clip paths are rough, so for the person's own photographs redraw the scene unless the photograph itself is what they asked for.`;
 
@@ -318,6 +322,18 @@ Write to the person in the language they write in.`;
           crop_bottom: { type: 'number', description: 'Fraction trimmed from the bottom.' },
         },
         required: ['layer_id'],
+      },
+    },
+    {
+      name: 'merge_layers',
+      description: 'Bakes two or more layers into one picture and puts a single layer in their place, at the farthest one\'s depth and slot in the stack. Everything in it then moves as one, and its own drawing can no longer be read back or edited, so merge only layers that belong at the same distance. Video and shader layers cannot be merged.',
+      parameters: {
+        type: 'object',
+        properties: {
+          layer_ids: { type: 'array', items: { type: 'number' }, description: 'Ids of the layers to merge, two or more.' },
+          name: { type: 'string', description: 'Name for the merged layer. Default: the farthest layer\'s name.' },
+        },
+        required: ['layer_ids'],
       },
     },
     {

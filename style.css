@@ -419,6 +419,38 @@ select.small { padding: 4px 8px; font-size: 13px; }
 }
 .dialog .field .hint { display: block; margin: 3px 0 0; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+/* ---- marking up a picture for the assistant (js/annotate.js) ---- */
+.annotate-dialog { width: min(1040px, calc(100vw - 32px)); }
+.annotate-dialog[open] { display: flex; flex-direction: column; gap: 8px; height: min(820px, calc(100vh - 48px)); overflow: auto; }
+.annotate-dialog .hint, .annotate-dialog .field { margin: 0; }
+.annotate-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.annotate-tools [data-tool].active { border-color: var(--accent); color: var(--text); background: var(--panel-2); }
+.annotate-colors { display: inline-flex; gap: 5px; }
+.annotate-color {
+  width: 22px; height: 22px; padding: 0;
+  border: 2px solid transparent; border-radius: 50%; cursor: pointer;
+}
+.annotate-color.active { border-color: var(--text); box-shadow: 0 0 0 2px var(--panel); }
+.annotate-width { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.annotate-width input { width: 110px; }
+/* The picture must keep a usable size even in a short window: the dialog scrolls instead. */
+.annotate-body { display: flex; gap: 12px; flex: 1; min-height: 260px; }
+.annotate-stage {
+  flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center;
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 8px;
+}
+.annotate-stage canvas { max-width: 100%; max-height: 100%; border-radius: 6px; cursor: crosshair; touch-action: none; }
+.annotate-side { width: 320px; display: flex; flex-direction: column; min-height: 0; overflow-y: auto; }
+.annotate-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.annotate-mark { display: flex; align-items: center; gap: 6px; }
+.annotate-badge {
+  flex: none; width: 22px; height: 22px; border-radius: 50%;
+  display: grid; place-items: center;
+  font-size: 12px; font-weight: 700; color: #10121a;
+}
+.annotate-mark input[type="text"] { flex: 1; min-width: 0; }
+.annotate-remove { flex: none; padding: 4px 8px; }
+
 .signin { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 10px; border-radius: 8px; background: var(--panel-2); font-size: 13px; }
 .signin span { flex: 1; min-width: 160px; }
 
@@ -456,3 +488,6 @@ select.small { padding: 4px 8px; font-size: 13px; }
 .app-mode .layer-item { min-height: 52px; }
 .app-mode .dialog { padding: 16px; }
 .app-mode .dialog-grid { grid-template-columns: 1fr; }
+.app-mode .annotate-body { flex-direction: column; }
+.app-mode .annotate-side { width: auto; flex: none; max-height: 34vh; }
+.app-mode .annotate-stage { flex: 1; min-height: 0; }

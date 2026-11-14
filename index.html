@@ -126,6 +126,7 @@
         <div class="button-row">
           <button id="replaceImageBtn" class="small">更換檔案</button>
           <button id="duplicateBtn" class="small">複製圖層</button>
+          <button id="mergeDownBtn" class="small">向下合併</button>
           <button id="deleteBtn" class="small danger">刪除</button>
         </div>
       </div>
@@ -165,6 +166,7 @@
       <textarea id="assistantInput" class="assistant-input" rows="3" aria-label="給 AI 助手的訊息" placeholder="描述想要的畫面… (Enter 送出,Shift+Enter 換行)"></textarea>
       <div class="assistant-bar">
         <button id="assistantAttach" class="small" title="附上參考圖(也可以直接貼上或拖進來)">＋ 參考圖</button>
+        <button id="assistantAnnotate" class="small" title="在圖層、畫面或參考圖上畫出要改的地方,連同說明一起給 AI">＋ 標註</button>
         <button id="assistantTemplates" class="small" aria-haspopup="menu" aria-expanded="false" title="插入提示詞模板,或把目前輸入的文字存成自己的模板">模板</button>
         <div id="templateMenu" class="template-menu" role="menu" hidden></div>
         <button id="assistantExpand" class="small" title="打開提示詞編輯器:用大一點的視窗寫提示詞">展開</button>
@@ -182,11 +184,44 @@
     <textarea id="promptText" class="assistant-input prompt-text" aria-label="給 AI 助手的訊息" placeholder="描述想要的畫面…"></textarea>
     <div class="assistant-bar">
       <button id="promptAttach" class="small" type="button" title="附上參考圖(也可以直接貼上或拖進來)">＋ 參考圖</button>
+      <button id="promptAnnotate" class="small" type="button" title="在圖層、畫面或參考圖上畫出要改的地方,連同說明一起給 AI">＋ 標註</button>
       <button id="promptTemplates" class="small" type="button" aria-haspopup="menu" aria-expanded="false" title="插入提示詞模板,或把目前輸入的文字存成自己的模板">模板</button>
       <div id="promptTemplateMenu" class="template-menu" role="menu" hidden></div>
       <span id="promptCount" class="hint"></span>
       <button id="promptCollapse" class="small" type="button">收合</button>
       <button id="promptSend" class="small primary" type="button">送出</button>
+    </div>
+  </dialog>
+
+  <dialog id="annotateDialog" class="dialog annotate-dialog" aria-labelledby="annotateTitle">
+    <h2 id="annotateTitle" class="dialog-title">標註要改的地方</h2>
+    <p class="hint">在圖上畫出要改的地方,每個標記寫一句說明。按「加到助手」會把這張標註圖和說明放進訊息,再補上你的要求就能送出。</p>
+    <label class="field">標註在哪一張圖上
+      <select id="annotateTarget"></select>
+    </label>
+    <div id="annotateTools" class="annotate-tools">
+      <button class="small" type="button" data-tool="brush" title="塗抹出一塊範圍:這裡">塗抹</button>
+      <button class="small" type="button" data-tool="rect" title="框出一塊範圍">方框</button>
+      <button class="small" type="button" data-tool="arrow" title="畫箭頭:把這個移到那裡">箭頭</button>
+      <span id="annotateColors" class="annotate-colors" role="group" aria-label="標記顏色"></span>
+      <label id="annotateWidthRow" class="annotate-width">粗細
+        <input id="annotateWidth" type="range" min="6" max="60" step="2" value="18" aria-label="塗抹粗細">
+      </label>
+      <span class="spacer"></span>
+      <button id="annotateUndoMark" class="small" type="button">刪掉上一個</button>
+      <button id="annotateClear" class="small" type="button">全部清掉</button>
+    </div>
+    <div class="annotate-body">
+      <div class="annotate-stage"><canvas id="annotateCanvas"></canvas></div>
+      <div class="annotate-side">
+        <ol id="annotateList" class="annotate-list"></ol>
+        <p id="annotateEmpty" class="empty">還沒有標記。在左邊的圖上拖曳,就會加入一個標記。</p>
+      </div>
+    </div>
+    <div class="dialog-actions">
+      <span id="annotateCount" class="hint"></span>
+      <button id="annotateCancel" class="small" type="button">取消</button>
+      <button id="annotateApply" class="small primary" type="button" disabled>加到助手</button>
     </div>
   </dialog>
 
@@ -273,6 +308,8 @@
       <dl class="keys">
         <dt>按兩下圖層名稱</dt><dd>改名</dd>
         <dt>拖曳圖層到另一個圖層上</dt><dd>調整前後順序</dd>
+        <dt>向下合併</dt><dd>把選取的圖層和後面那層烤成一張圖片,用後面那層的遠近</dd>
+        <dt>助手的「＋ 標註」</dt><dd>在圖層、畫面或參考圖上畫出要改的地方,連同座標一起交給 AI</dd>
         <dt>Delete</dt><dd>刪除選取的圖層</dd>
         <dt>Ctrl + Z / Ctrl + Y</dt><dd>復原 / 重做</dd>
         <dt>?</dt><dd>開啟這份說明</dd>
@@ -304,6 +341,7 @@
   <script src="js/ai/gemini.js"></script>
   <script src="js/ai/openai.js"></script>
   <script src="js/assistant.js"></script>
+  <script src="js/annotate.js"></script>
   <script src="js/phone.js"></script>
 </body>
 </html>

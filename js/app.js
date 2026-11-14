@@ -757,9 +757,7 @@
   function renderLayerList() {
     const list = $('layerList');
     list.textContent = '';
-    // Nearest first. Among equal depths the one drawn last (on top) comes first.
-    const order = state.layers.slice().sort((a, b) => b.depth - a.depth).reverse();
-    for (const layer of order) {
+    for (const layer of listOrder()) {
       const item = document.createElement('li');
       item.className = 'layer-item';
       item.classList.toggle('selected', layer.id === state.selectedId);
@@ -863,6 +861,87 @@
     }
     $('emptyHint').hidden = state.layers.length > 0;
     $('welcome').hidden = state.layers.length > 0;
+  }
+
+  /** The stack as the layer list shows it: nearest first. Among equal depths the one on top comes first. */
+  function listOrder() {
+    return state.layers.slice().sort((a, b) => b.depth - a.depth).reverse();
+  }
+
+  /** The layer immediately behind this one, or null if it is the farthest. */
+  function layerBehind(layer) {
+    const order = listOrder();
+    return order[order.indexOf(layer) + 1] || null;
+  }
+
+  /** Why these layers cannot be baked into one picture, or '' if they can. */
+  function mergeProblem(layers) {
+    for (const layer of layers) {
+      if (shaderOf(layer)) return t`「${layer.name}」是動態圖層,手機要自己執行它的程式,不能併進圖片裡。`;
+      if (isVideo(layer)) return t`「${layer.name}」是影片圖層,手機要自己播放原始檔案,不能併進圖片裡。`;
+      if (!layer.visible) return t`「${layer.name}」是隱藏的,請先顯示它,或是把它刪掉。`;
+    }
+    return '';
+  }
+
+  /**
+   * Bakes several layers into one full-canvas picture, in the order the app draws them, and puts
+   * a single layer in their place. The merged layer takes the farthest one's depth and slot in
+   * the stack, so everything in it now moves together: merging trades their parallax for one
+   * depth, in exchange for fewer layers on the phone.
+   */
+  async function mergeLayers(layers, name) {
+    const far = layers.slice().sort((a, b) => b.depth - a.depth);
+    if (far.length < 2) throw new Error(t`要合併至少需要兩個圖層`);
+    const problem = mergeProblem(far);
+    if (problem) throw new Error(problem);
+
+    const W = state.canvasW;
+    const H = state.canvasH;
+    const out = document.createElement('canvas');
+    out.width = W;
+    out.height = H;
+    const outCtx = out.getContext('2d', { willReadFrequently: true });
+    const work = document.createElement('canvas');
+    work.width = W;
+    work.height = H;
+    const workCtx = work.getContext('2d', { willReadFrequently: true });
+    for (const layer of far) {
+      bakeInto(workCtx, layer, W, H);
+      outCtx.globalCompositeOperation = compositeOf(layer);
+      outCtx.drawImage(work, 0, 0);
+    }
+    outCtx.globalCompositeOperation = 'source-over';
+
+    // JPEG once nothing is transparent: a full-canvas PNG is several megabytes to keep and autosave.
+    const opaque = isOpaque(outCtx, W, H);
+    const imageId = await registerImage(out.toDataURL(opaque ? 'image/jpeg' : 'image/png', 0.95));
+    images.get(imageId).source = { type: 'merged', from: far.map((l) => l.name) };
+
+    const bottom = far[0];
+    // No placement survives: it is baked into a picture that already covers the canvas exactly.
+    const merged = {
+      id: nextId++,
+      imageId,
+      name: String(name || bottom.name).slice(0, 60),
+      depth: bottom.depth,
+      x: 0,
+      y: 0,
+      scale: 1,
+      rotation: 0,
+      opacity: 1,
+      flip: false,
+      blend: 'normal',
+      visible: true,
+    };
+    const gone = new Set(far.map((l) => l.id));
+    state.layers.splice(state.layers.indexOf(bottom), 0, merged);
+    state.layers = state.layers.filter((l) => !gone.has(l.id));
+    gone.forEach((id) => baked.delete(id));
+    state.selectedId = merged.id;
+    refresh();
+    commit();
+    return merged;
   }
 
   /**
@@ -1087,6 +1166,17 @@
       refresh();
       commit();
     });
+    $('mergeDownBtn').addEventListener('click', async () => {
+      const layer = selected();
+      const behind = layer && layerBehind(layer);
+      if (!behind) return;
+      try {
+        const merged = await mergeLayers([layer, behind]);
+        toast(t`已把「${layer.name}」併入「${merged.name}」,成為一個圖層。`);
+      } catch (error) {
+        toast(error.message, true);
+      }
+    });
     $('replaceImageBtn').addEventListener('click', () => $('replaceInput').click());
   }
 
@@ -1103,6 +1193,11 @@
       $('blendRow').hidden = !video;
       $('cropRow').hidden = video;
       $('layerBlend').value = layer.blend || 'normal';
+      // Merging bakes both layers into one picture, so it needs a layer behind that can be baked.
+      const behind = layerBehind(layer);
+      const problem = behind ? mergeProblem([layer, behind]) : t`這是最遠的圖層,後面沒有可以合併的圖層。`;
+      $('mergeDownBtn').disabled = !!problem;
+      $('mergeDownBtn').title = problem || t`把這個圖層和後面的「${behind.name}」烤成一張圖片,留在深度 ${behind.depth.toFixed(2)}。`;
     }
     bindings.forEach((b) => b.sync());
     $('effect').value = state.effect;
@@ -2569,7 +2664,23 @@
     readArt(id) {
       const entry = images.get(layerById(id).imageId);
       if (!entry || !entry.source) throw new Error('This layer is an imported picture or video; it has no editable source.');
+      if (entry.source.type === 'merged') {
+        throw new Error(`This layer was merged from ${entry.source.from.map((n) => `"${n}"`).join(', ')}, so it is one picture now and has no editable source. Draw it again with update_layer_art if it needs changing.`);
+      }
       return entry.source;
+    },
+
+    /**
+     * Bakes several layers into one picture. For layers that belong together and should move as
+     * one, and to bring a stack back under the handful of layers a phone should carry.
+     */
+    async mergeLayers(p) {
+      const ids = Array.isArray(p.layer_ids) ? p.layer_ids : [];
+      if (ids.length < 2) throw new Error('Pass at least two layer_ids.');
+      const layers = ids.map(layerById);
+      if (new Set(layers).size !== layers.length) throw new Error('layer_ids names the same layer twice.');
+      const merged = await mergeLayers(layers, p.name);
+      return { layer_id: merged.id, merged_from: ids, ...describeLayer(merged) };
     },
 
     updateLayer(id, p) {
@@ -2629,5 +2740,6 @@
     buildPackZip,
     loadPack,
     restored,
+    toast,
   };
 })();
